@@ -1,8 +1,3 @@
-"""
-مدل‌های دیتابیس (Database Models)
-این فایل شامل تمام مدل‌های SQLAlchemy برای ساخت جداول دیتابیس است.
-"""
-
 from sqlalchemy import Column, Integer, String, Float, Boolean, DateTime, ForeignKey, Text, JSON, Index, Time
 from sqlalchemy.ext.declarative import declarative_base
 from datetime import datetime
@@ -10,10 +5,7 @@ from datetime import datetime
 Base = declarative_base()
 
 
-# ========== مدل‌های اصلی کلینیک ==========
-
 class Clinic(Base):
-    """کلینیک اصلی"""
     __tablename__ = 'clinics'
     id = Column(Integer, primary_key=True)
     name = Column(String(200))
@@ -22,26 +14,24 @@ class Clinic(Base):
 
 
 class Staff(Base):
-    """کارکنان کلینیک (مالک، پزشک، منشی)"""
     __tablename__ = 'staff'
     id = Column(Integer, primary_key=True)
     clinic_id = Column(Integer, ForeignKey('clinics.id'))
     telegram_id = Column(Integer, unique=True)
     name = Column(String(200))
-    role = Column(String(50))   # owner, doctor, secretary
+    role = Column(String(50))
     invited_by = Column(Integer, ForeignKey('staff.id'), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
 class Patient(Base):
-    """بیماران کلینیک"""
     __tablename__ = 'patients'
     id = Column(Integer, primary_key=True)
     clinic_id = Column(Integer, ForeignKey('clinics.id'))
     master_patient_id = Column(Integer, ForeignKey('patients.id'), nullable=True)
     name = Column(String(200))
     phone = Column(String(50))
-    status = Column(String(20), default='active')   # active, cold, dead, spam, customer, archived, archived_cold, archived_dead
+    status = Column(String(20), default='active')
     memory_purged = Column(Boolean, default=False)
     summary_data = Column(JSON, nullable=True)
     preferred_language = Column(String(10), default='fa')
@@ -51,11 +41,10 @@ class Patient(Base):
 
 
 class PatientAlias(Base):
-    """نام‌های مستعار بیمار در پلتفرم‌های مختلف"""
     __tablename__ = 'patient_aliases'
     id = Column(Integer, primary_key=True)
     patient_id = Column(Integer, ForeignKey('patients.id'))
-    platform = Column(String(50))                    # telegram, instagram, whatsapp, website
+    platform = Column(String(50))
     external_user_id = Column(String(200), nullable=True)
     username = Column(String(200), nullable=True)
     display_name = Column(String(200), nullable=True)
@@ -69,10 +58,7 @@ class PatientAlias(Base):
     )
 
 
-# ========== مدل‌های مکالمه و جلسه ==========
-
 class Session(Base):
-    """جلسه مکالمه با بیمار"""
     __tablename__ = 'sessions'
     id = Column(Integer, primary_key=True)
     clinic_id = Column(Integer, ForeignKey('clinics.id'))
@@ -86,7 +72,6 @@ class Session(Base):
 
 
 class RawMessage(Base):
-    """پیام‌های خام دریافتی"""
     __tablename__ = 'raw_messages'
     id = Column(Integer, primary_key=True)
     clinic_id = Column(Integer, ForeignKey('clinics.id'))
@@ -96,38 +81,34 @@ class RawMessage(Base):
     external_user_id = Column(String(200))
     message_text = Column(Text)
     media_url = Column(Text, nullable=True)
-    media_type = Column(String(20), nullable=True)   # photo, video, voice, document
+    media_type = Column(String(20), nullable=True)
     voice_duration = Column(Integer, nullable=True)
     transcript = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
 class Event(Base):
-    """رویدادهای پردازش شده (با Intent و امتیاز)"""
     __tablename__ = 'events'
     id = Column(Integer, primary_key=True)
     clinic_id = Column(Integer, ForeignKey('clinics.id'))
     raw_message_id = Column(Integer, ForeignKey('raw_messages.id'))
     session_id = Column(Integer, ForeignKey('sessions.id'))
     patient_id = Column(Integer, ForeignKey('patients.id'))
-    intent_type = Column(String(50))                 # inquiry, booking_request, price_check, complaint, content_question, small_talk
-    objection_category = Column(String(50), nullable=True)   # price, fear, family, time, trust
-    service = Column(String(50))                     # botox, filler, laser, mesotherapy, surgery
+    intent_type = Column(String(50))
+    objection_category = Column(String(50), nullable=True)
+    service = Column(String(50))
     extracted_question = Column(Text)
     lead_score = Column(Float)
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
-# ========== مدل‌های پروفایل و حافظه بیمار ==========
-
 class PatientProfile(Base):
-    """پروفایل احساسی و رفتاری بیمار"""
     __tablename__ = 'patient_profiles'
     id = Column(Integer, primary_key=True)
     patient_id = Column(Integer, ForeignKey('patients.id'), unique=True)
-    fear_level = Column(Integer, default=0)                # 0-10
-    trust_level = Column(Integer, default=5)               # 0-10
-    price_sensitivity = Column(Integer, default=5)         # 0-10
+    fear_level = Column(Integer, default=0)
+    trust_level = Column(Integer, default=5)
+    price_sensitivity = Column(Integer, default=5)
     moving_avg_fear = Column(Float, default=0.0)
     moving_avg_trust = Column(Float, default=5.0)
     moving_avg_price_sensitivity = Column(Float, default=5.0)
@@ -136,37 +117,32 @@ class PatientProfile(Base):
 
 
 class PatientMemory(Base):
-    """حافظه بلندمدت بیمار (رویدادهای مهم زندگی)"""
     __tablename__ = 'patient_memories'
     id = Column(Integer, primary_key=True)
     patient_id = Column(Integer, ForeignKey('patients.id'))
-    memory_type = Column(String(50))               # wedding, husband_opposed, bad_experience, important_date
+    memory_type = Column(String(50))
     memory_text = Column(Text)
-    importance_score = Column(Integer, default=5)  # 1-10
+    importance_score = Column(Integer, default=5)
     mention_count = Column(Integer, default=1)
-    confidence = Column(Float, default=0.0)        # 0-1
-    source = Column(String(50), default='llm')     # llm, patient_stated, doctor_entered
-    embedding_blob = Column(Text, nullable=True)   # ذخیره embedding برای جستجو
+    confidence = Column(Float, default=0.0)
+    source = Column(String(50), default='llm')
+    embedding_blob = Column(Text, nullable=True)
     expires_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
 class ConversationState(Base):
-    """وضعیت مکالمه فعلی (برای هدایت گفتگو)"""
     __tablename__ = 'conversation_states'
     id = Column(Integer, primary_key=True)
     session_id = Column(Integer, ForeignKey('sessions.id'))
-    current_goal = Column(String(50))              # booking, inquiry, objection_handling
-    missing_information = Column(JSON)             # ["service", "area", "date"]
-    conversation_stage = Column(String(50))        # greeting, qualification, consultation, booking, closing
+    current_goal = Column(String(50))
+    missing_information = Column(JSON)
+    conversation_stage = Column(String(50))
     next_best_question = Column(Text, nullable=True)
     updated_at = Column(DateTime, default=datetime.utcnow)
 
 
-# ========== مدل‌های لید و پیپلاین فروش ==========
-
 class Lead(Base):
-    """لیدهای فروش"""
     __tablename__ = 'leads'
     id = Column(Integer, primary_key=True)
     clinic_id = Column(Integer, ForeignKey('clinics.id'))
@@ -174,7 +150,7 @@ class Lead(Base):
     event_id = Column(Integer, ForeignKey('events.id'))
     service = Column(String(50))
     lead_score = Column(Float)
-    pipeline_stage = Column(String(50), default='new')   # new, contacted, consultation, booked, completed, lost, no_show
+    pipeline_stage = Column(String(50), default='new')
     objection_category = Column(String(50), nullable=True)
     recovery_attempts = Column(Integer, default=0)
     last_followup = Column(DateTime, nullable=True)
@@ -182,7 +158,6 @@ class Lead(Base):
 
 
 class PipelineHistory(Base):
-    """تاریخچه تغییرات پیپلاین لید"""
     __tablename__ = 'pipeline_history'
     id = Column(Integer, primary_key=True)
     lead_id = Column(Integer, ForeignKey('leads.id'))
@@ -191,10 +166,7 @@ class PipelineHistory(Base):
     changed_by = Column(Integer, ForeignKey('staff.id'), nullable=True)
 
 
-# ========== مدل‌های نوبت‌دهی ==========
-
 class Appointment(Base):
-    """نوبت‌های قطعی"""
     __tablename__ = 'appointments'
     id = Column(Integer, primary_key=True)
     clinic_id = Column(Integer, ForeignKey('clinics.id'))
@@ -202,7 +174,7 @@ class Appointment(Base):
     patient_id = Column(Integer, ForeignKey('patients.id'))
     service = Column(String(50))
     appointment_date = Column(DateTime)
-    status = Column(String(50))           # scheduled, confirmed, completed, canceled, no_show
+    status = Column(String(50))
     revenue = Column(Float, nullable=True)
     reminder_sent = Column(Boolean, default=False)
     no_show = Column(Boolean, default=False)
@@ -210,23 +182,19 @@ class Appointment(Base):
 
 
 class AppointmentRequest(Base):
-    """درخواست‌های نوبت (در انتظار تأیید)"""
     __tablename__ = 'appointment_requests'
     id = Column(Integer, primary_key=True)
     clinic_id = Column(Integer, ForeignKey('clinics.id'))
     lead_id = Column(Integer, ForeignKey('leads.id'))
     suggested_date = Column(DateTime)
-    status = Column(String(20), default='pending')   # pending, confirmed, canceled
+    status = Column(String(20), default='pending')
     confirmed_date = Column(DateTime, nullable=True)
     confirmed_by = Column(Integer, ForeignKey('staff.id'), nullable=True)
     notes = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
-# ========== مدل‌های قیمت و دانش ==========
-
 class ServicePrice(Base):
-    """قیمت خدمات در طول زمان (با نسخه‌بندی)"""
     __tablename__ = 'service_prices'
     id = Column(Integer, primary_key=True)
     clinic_id = Column(Integer, ForeignKey('clinics.id'))
@@ -237,7 +205,6 @@ class ServicePrice(Base):
 
 
 class KnowledgeItem(Base):
-    """دانشنامه کلینیک (سوال و پاسخ تأیید شده توسط پزشک)"""
     __tablename__ = 'knowledge_items'
     id = Column(Integer, primary_key=True)
     clinic_id = Column(Integer, ForeignKey('clinics.id'))
@@ -254,7 +221,6 @@ class KnowledgeItem(Base):
 
 
 class DoctorEdit(Base):
-    """اصلاحات پزشک بر روی پاسخ‌های AI (برای یادگیری)"""
     __tablename__ = 'doctor_edits'
     id = Column(Integer, primary_key=True)
     clinic_id = Column(Integer, ForeignKey('clinics.id'))
@@ -266,7 +232,6 @@ class DoctorEdit(Base):
 
 
 class OutcomePattern(Base):
-    """الگوهای پاسخ و نرخ تبدیل آنها (برای یادگیری)"""
     __tablename__ = 'outcome_patterns'
     id = Column(Integer, primary_key=True)
     clinic_id = Column(Integer, ForeignKey('clinics.id'))
@@ -277,10 +242,7 @@ class OutcomePattern(Base):
     updated_at = Column(DateTime, default=datetime.utcnow)
 
 
-# ========== مدل‌های آمار و رصد ==========
-
 class DailyKPI(Base):
-    """شاخص‌های کلیدی عملکرد روزانه"""
     __tablename__ = 'daily_kpi'
     id = Column(Integer, primary_key=True)
     clinic_id = Column(Integer, ForeignKey('clinics.id'))
@@ -293,14 +255,38 @@ class DailyKPI(Base):
     no_show_count = Column(Integer, default=0)
     revenue = Column(Float, default=0.0)
     lost_revenue = Column(Float, default=0.0)
-    top_objections = Column(Text)          # JSON string
-    top_services = Column(Text)            # JSON string
+    top_objections = Column(Text)
+    top_services = Column(Text)
     conversion_rate = Column(Float, default=0.0)
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
+class EscalationLog(Base):
+    __tablename__ = 'escalation_logs'
+    id = Column(Integer, primary_key=True)
+    clinic_id = Column(Integer, ForeignKey('clinics.id'))
+    patient_id = Column(Integer, ForeignKey('patients.id'))
+    session_id = Column(Integer, ForeignKey('sessions.id'))
+    reason = Column(String(100))
+    trigger = Column(String(200))
+    message_id = Column(Integer, ForeignKey('raw_messages.id'), nullable=True)
+    escalated_to = Column(String(50))
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class HumanCorrection(Base):
+    __tablename__ = 'human_corrections'
+    id = Column(Integer, primary_key=True)
+    clinic_id = Column(Integer, ForeignKey('clinics.id'))
+    patient_id = Column(Integer, ForeignKey('patients.id'))
+    staff_id = Column(Integer, ForeignKey('staff.id'))
+    field_name = Column(String(50))
+    original_value = Column(Text)
+    corrected_value = Column(Text)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
 class SystemMetric(Base):
-    """آمار سیستمی (تعداد پیام‌ها، هزینه LLM، ...)"""
     __tablename__ = 'system_metrics'
     id = Column(Integer, primary_key=True)
     clinic_id = Column(Integer, ForeignKey('clinics.id'), nullable=True)
@@ -314,51 +300,7 @@ class SystemMetric(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
-# ========== مدل‌های امنیت و لاگ ==========
-
-class EscalationLog(Base):
-    """لاگ ارجاع به انسان (Human Handoff)"""
-    __tablename__ = 'escalation_logs'
-    id = Column(Integer, primary_key=True)
-    clinic_id = Column(Integer, ForeignKey('clinics.id'))
-    patient_id = Column(Integer, ForeignKey('patients.id'))
-    session_id = Column(Integer, ForeignKey('sessions.id'))
-    reason = Column(String(100))           # medical_risk, human_request, system_fallback
-    trigger = Column(String(200))          # keyword or detected intent
-    message_id = Column(Integer, ForeignKey('raw_messages.id'))
-    escalated_to = Column(String(50))      # doctor, secretary
-    created_at = Column(DateTime, default=datetime.utcnow)
-
-
-class HumanCorrection(Base):
-    """اصلاحات دستی منشی/پزشک بر روی خروجی AI"""
-    __tablename__ = 'human_corrections'
-    id = Column(Integer, primary_key=True)
-    clinic_id = Column(Integer, ForeignKey('clinics.id'))
-    patient_id = Column(Integer, ForeignKey('patients.id'))
-    staff_id = Column(Integer, ForeignKey('staff.id'))
-    field_name = Column(String(50))        # intent, service, objection
-    original_value = Column(Text)
-    corrected_value = Column(Text)
-    created_at = Column(DateTime, default=datetime.utcnow)
-
-
-class AuditLog(Base):
-    """لاگ کامل تمام تغییرات (برای انطباق پزشکی)"""
-    __tablename__ = 'audit_logs'
-    id = Column(Integer, primary_key=True)
-    clinic_id = Column(Integer, ForeignKey('clinics.id'))
-    staff_id = Column(Integer, ForeignKey('staff.id'), nullable=True)
-    action_type = Column(String(50))       # lead_status_change, price_update, patient_merge
-    old_value = Column(Text)
-    new_value = Column(Text)
-    created_at = Column(DateTime, default=datetime.utcnow)
-
-
-# ========== مدل‌های تنظیمات و پیکربندی ==========
-
 class ClinicWorkingHours(Base):
-    """ساعات کاری کلینیک (برای Quiet Hours)"""
     __tablename__ = 'clinic_working_hours'
     id = Column(Integer, primary_key=True)
     clinic_id = Column(Integer, ForeignKey('clinics.id'))
@@ -368,7 +310,6 @@ class ClinicWorkingHours(Base):
 
 
 class FollowupWindow(Base):
-    """زمان پیگیری بر اساس نوع خدمت"""
     __tablename__ = 'followup_windows'
     id = Column(Integer, primary_key=True)
     clinic_id = Column(Integer, ForeignKey('clinics.id'))
@@ -378,17 +319,15 @@ class FollowupWindow(Base):
 
 
 class RetentionPolicy(Base):
-    """سیاست نگهداری داده (برای GDPR/حریم خصوصی)"""
     __tablename__ = 'retention_policies'
     id = Column(Integer, primary_key=True)
     clinic_id = Column(Integer, ForeignKey('clinics.id'))
-    data_type = Column(String(50))         # memory, raw_message, event
+    data_type = Column(String(50))
     retention_days = Column(Integer)
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
 class DataConsent(Base):
-    """رضایت بیمار برای نگهداری داده"""
     __tablename__ = 'data_consents'
     id = Column(Integer, primary_key=True)
     patient_id = Column(Integer, ForeignKey('patients.id'))
@@ -398,56 +337,48 @@ class DataConsent(Base):
 
 
 class FeatureFlag(Base):
-    """فعال/غیرفعال کردن ویژگی‌ها (برای آزمایش تدریجی)"""
     __tablename__ = 'feature_flags'
     id = Column(Integer, primary_key=True)
     clinic_id = Column(Integer, ForeignKey('clinics.id'))
     feature_name = Column(String(100))
     is_active = Column(Boolean, default=False)
-    mode = Column(String(20), default='disabled')   # active, observation, disabled
+    mode = Column(String(20), default='disabled')
 
-
-# ========== مدل‌های شخصیت مکالمه ==========
 
 class ClinicPersona(Base):
-    """شخصیت مکالمه کلینیک (لحن، سبک، نام پذیرنده)"""
     __tablename__ = 'clinic_personas'
     id = Column(Integer, primary_key=True)
     clinic_id = Column(Integer, ForeignKey('clinics.id'))
     tone = Column(String(50), default='friendly')
-    emoji_level = Column(Integer, default=2)          # 0-3
+    emoji_level = Column(Integer, default=2)
     formality = Column(String(50), default='semi-formal')
     receptionist_name = Column(String(100), default='سارا')
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
 class ConversationStyle(Base):
-    """سبک مکالمه قابل انتخاب توسط کلینیک"""
     __tablename__ = 'conversation_styles'
     id = Column(Integer, primary_key=True)
     clinic_id = Column(Integer, ForeignKey('clinics.id'))
-    style_name = Column(String(50), default='friendly')   # friendly, luxury, professional, vip
+    style_name = Column(String(50), default='friendly')
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
 class ObjectionLog(Base):
-    """ثبت اعتراضات بیماران برای تحلیل"""
     __tablename__ = 'objection_logs'
     id = Column(Integer, primary_key=True)
     event_id = Column(Integer, ForeignKey('events.id'))
-    category = Column(String(50))               # price, fear, family, time, trust
+    category = Column(String(50))
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
-# ========== مدل‌های Content Brain (اختیاری) ==========
-
+# مدل‌های Content Brain (اختیاری - فقط در صورت نیاز)
 class ContentAsset(Base):
-    """دارایی‌های محتوایی (تصاویر، ویدیوها، نمونه استوری‌ها)"""
     __tablename__ = 'content_assets'
     id = Column(Integer, primary_key=True)
     clinic_id = Column(Integer, ForeignKey('clinics.id'))
-    asset_type = Column(String(50))             # image, video, caption, story_sample
-    source = Column(String(50))                 # upload, competitor, suggestion
+    asset_type = Column(String(50))
+    source = Column(String(50))
     file_url = Column(Text)
     tags = Column(JSON)
     approved_by = Column(Integer, ForeignKey('staff.id'), nullable=True)
@@ -456,7 +387,6 @@ class ContentAsset(Base):
 
 
 class BrandProfile(Base):
-    """پروفایل برند کلینیک (برای تولید محتوا)"""
     __tablename__ = 'brand_profiles'
     id = Column(Integer, primary_key=True)
     clinic_id = Column(Integer, ForeignKey('clinics.id'))
@@ -471,19 +401,17 @@ class BrandProfile(Base):
 
 
 class VisualMemory(Base):
-    """حافظه بصری (تصاویر محیط کلینیک)"""
     __tablename__ = 'visual_memory'
     id = Column(Integer, primary_key=True)
     clinic_id = Column(Integer, ForeignKey('clinics.id'))
     image_url = Column(Text)
     image_embedding_blob = Column(Text)
-    location_type = Column(String(50))          # reception, waiting_room, injection_room
+    location_type = Column(String(50))
     tags = Column(JSON)
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
 class BeforeAfter(Base):
-    """تصاویر قبل و بعد (با تأیید پزشک)"""
     __tablename__ = 'before_after'
     id = Column(Integer, primary_key=True)
     clinic_id = Column(Integer, ForeignKey('clinics.id'))
@@ -496,7 +424,6 @@ class BeforeAfter(Base):
 
 
 class DoctorVoice(Base):
-    """صدای پزشک (برای Clone)"""
     __tablename__ = 'doctor_voice'
     id = Column(Integer, primary_key=True)
     clinic_id = Column(Integer, ForeignKey('clinics.id'))
@@ -507,24 +434,22 @@ class DoctorVoice(Base):
 
 
 class ContentIdea(Base):
-    """ایده‌های محتوایی تولید شده"""
     __tablename__ = 'content_ideas'
     id = Column(Integer, primary_key=True)
     clinic_id = Column(Integer, ForeignKey('clinics.id'))
     topic = Column(String(200))
-    content_type = Column(String(50))           # story, reel, post, caption
+    content_type = Column(String(50))
     generated_text = Column(Text)
-    status = Column(String(20), default='pending')   # pending, approved, rejected
+    status = Column(String(20), default='pending')
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
 class ContentWorkflow(Base):
-    """گردش کاری تأیید محتوا"""
     __tablename__ = 'content_workflow'
     id = Column(Integer, primary_key=True)
     clinic_id = Column(Integer, ForeignKey('clinics.id'))
     content_idea_id = Column(Integer, ForeignKey('content_ideas.id'))
-    status = Column(String(20))                 # draft, review, approved, published
+    status = Column(String(20))
     reviewer_id = Column(Integer, ForeignKey('staff.id'), nullable=True)
     published_url = Column(Text)
     performance_notes = Column(Text)
