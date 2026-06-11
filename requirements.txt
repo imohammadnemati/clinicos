@@ -1,0 +1,11 @@
+python-telegram-bot==20.7
+APScheduler==3.10.4
+google-generativeai==0.7.2
+python-dotenv==1.0.0
+SQLAlchemy==2.0.25
+psycopg2-binary==2.9.9
+numpy==1.24.3
+pydantic==2.5.3
+langdetect==1.0.9
+flask==3.0.0
+requests==2.31.0
