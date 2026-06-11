@@ -158,14 +158,16 @@ def update_session_activity(session_id: int) -> bool:
         True در صورت موفقیت، False در غیر این صورت
     """
     db = SessionLocal()
-    now = datetime.utcnow()
-    
     try:
-        result = db.query(Session).filter_by(id=session_id).update({
-            "last_activity": now
-        })
-        db.commit()
-        return result > 0
+        session = db.query(Session).filter_by(id=session_id).first()
+        if session:
+            session.last_activity = datetime.utcnow()
+            db.commit()
+            logger.debug(f"زمان آخرین فعالیت جلسه {session_id} به‌روزرسانی شد.")
+            return True
+        else:
+            logger.warning(f"جلسه {session_id} یافت نشد.")
+            return False
     except Exception as e:
         logger.error(f"خطا در به‌روزرسانی فعالیت جلسه {session_id}: {e}")
         db.rollback()
@@ -348,8 +350,6 @@ def get_active_sessions_count(clinic_id: int) -> int:
         db.close()
 
 
-# ========== توابع کمکی ==========
-
 def format_session_duration(session: Session) -> str:
     """
     فرمت کردن مدت زمان جلسه برای نمایش
@@ -375,7 +375,5 @@ if __name__ == "__main__":
     print("=" * 50)
     print("ماژول مدیریت جلسات ClinicOS")
     print("=" * 50)
-    
-    # تست توابع (در صورت وجود دیتابیس)
     print("✅ ماژول session_manager بارگذاری شد.")
     print("توابع اصلی: get_or_create_session(), close_session(), update_session_activity()")
