@@ -130,7 +130,7 @@ def set_webhook():
     آدرس: https://your-app-name.up.railway.app/set_webhook
     """
     # اول سعی کن از متغیر محیطی Railway استفاده کنی
-    railway_domain = os.environ.get('RAILWAY_PUBLIC_DOMAIN')
+    railway_domain = "clinicos-production-9a22.up.railway.app"
     if not railway_domain:
         # fallback: اگر متغیر محیطی تنظیم نشده، از آدرس ثابت خودت استفاده کن (بر اساس دامنه‌ای که Railway به تو داده)
         # مثال: railway_domain = "clinicos-production-d6a1.up.railway.app"
