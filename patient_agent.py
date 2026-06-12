@@ -1,11 +1,11 @@
 import json
 import re
-import requests
 import asyncio
 import hashlib
 import logging
 from datetime import datetime
-from config import GROQ_API_KEY, LEAD_THRESHOLD
+import requests
+from config import CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID, LEAD_THRESHOLD
 from database import SessionLocal
 from models import (
     Session as SessionModel,
@@ -30,38 +30,30 @@ from working_hours import can_auto_reply
 
 logger = logging.getLogger(__name__)
 
-# ========== Groq API Configuration ==========
-GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
-GROQ_MODEL = "llama3-8b-8192"   # یا "mixtral-8x7b-32768" (همچنان رایگان)
+CLOUDFLARE_URL = f"https://api.cloudflare.com/client/v4/accounts/{CLOUDFLARE_ACCOUNT_ID}/ai/run/@cf/meta/llama-3-8b-instruct"
 
-async def call_groq(prompt: str, max_retries: int = 2) -> str:
-    """فراخوانی Groq API با retry و timeout"""
+async def call_cloudflare(prompt: str, max_retries: int = 2) -> str:
     headers = {
-        "Authorization": f"Bearer {GROQ_API_KEY}",
+        "Authorization": f"Bearer {CLOUDFLARE_API_TOKEN}",
         "Content-Type": "application/json"
     }
     data = {
-        "model": GROQ_MODEL,
         "messages": [{"role": "user", "content": prompt}],
-        "temperature": 0.7,
-        "max_tokens": 500
+        "max_tokens": 500,
+        "temperature": 0.7
     }
     for attempt in range(max_retries):
         try:
-            # استفاده از asyncio.to_thread برای جلوگیری از بلاک شدن حلقه رویداد
-            resp = await asyncio.to_thread(
-                requests.post, GROQ_URL, headers=headers, json=data, timeout=10
-            )
+            resp = await asyncio.to_thread(requests.post, CLOUDFLARE_URL, headers=headers, json=data, timeout=10)
             if resp.status_code == 200:
-                return resp.json()['choices'][0]['message']['content'].strip()
+                return resp.json()['result']['response'].strip()
             else:
-                logger.warning(f"Groq error {resp.status_code}: {resp.text}")
+                logger.warning(f"Cloudflare error {resp.status_code}: {resp.text}")
         except Exception as e:
-            logger.warning(f"Groq attempt {attempt+1} failed: {e}")
+            logger.warning(f"Cloudflare attempt {attempt+1} failed: {e}")
         await asyncio.sleep(1)
     return "متشکرم. پیام شما ثبت شد. به زودی پاسخگو خواهیم بود."
 
-# ========== Prompts ==========
 FACTS_PROMPT = """
 You are an AI assistant for a cosmetic clinic. Extract structured facts from the patient message.
 Return ONLY valid JSON, no extra text, no explanation.
@@ -84,8 +76,6 @@ JSON:
 """
 
 async def generate_reply(clinic_id: int, question: str, patient_id: int, lang: str) -> str:
-    """تولید پاسخ با استفاده از دانش قبلی یا Groq"""
-    # جستجو در دانش تأیید شده
     db = SessionLocal()
     try:
         knowledge = db.query(KnowledgeItem).filter(
@@ -97,34 +87,18 @@ async def generate_reply(clinic_id: int, question: str, patient_id: int, lang: s
                 return k.answer_text
     finally:
         db.close()
-    # اگر دانش نبود، از Groq بخواه
     prompt = f"You are a clinic receptionist. Reply in {lang}, briefly, naturally, no medical advice: {question}"
-    return await call_groq(prompt)
+    return await call_cloudflare(prompt)
 
-# ========== تابع اصلی پردازش پیام ==========
-async def process_patient_message(
-    update,
-    context,
-    clinic_id: int,
-    platform: str,
-    external_user_id: str,
-    raw_text: str,
-    media_url=None,
-    media_type=None,
-    transcript=None,
-    db=None
-):
+async def process_patient_message(update, context, clinic_id, platform, external_user_id, raw_text,
+                                  media_url=None, media_type=None, transcript=None, db=None):
     if db is None:
         db = SessionLocal()
-
     try:
         user = update.effective_user
         lang = detect_language(raw_text)
-        patient_id = get_or_create_patient(
-            clinic_id, platform, external_user_id,
-            user.username, user.full_name, raw_text
-        )
-
+        patient_id = get_or_create_patient(clinic_id, platform, external_user_id,
+                                           user.username, user.full_name, raw_text)
         patient = db.query(Patient).filter_by(id=patient_id).first()
         if patient:
             patient.preferred_language = lang
@@ -133,25 +107,22 @@ async def process_patient_message(
         session_id = get_or_create_session(clinic_id, patient_id)
         update_session_activity(session_id)
 
-        # ایمنی پزشکی
+        # Medical safety
         is_risk, risk_level = await check_medical_risk(raw_text)
         if is_risk:
-            esc = EscalationLog(
-                clinic_id=clinic_id, patient_id=patient_id, session_id=session_id,
-                reason="medical_risk", trigger=risk_level, escalated_to="doctor"
-            )
-            db.add(esc)
+            db.add(EscalationLog(clinic_id=clinic_id, patient_id=patient_id, session_id=session_id,
+                                 reason="medical_risk", trigger=risk_level, escalated_to="doctor"))
             db.commit()
-            await update.message.reply_text("⚠️ برای پاسخ به این سوال نیاز به بررسی پزشک دارید. لطفاً با کلینیک تماس بگیرید.")
+            await update.message.reply_text("⚠️ برای پاسخ به این سوال نیاز به بررسی پزشک دارید.")
             return
 
-        # بررسی ساعات کاری
+        # Working hours
         if not await can_auto_reply(clinic_id, session_id, db):
-            await update.message.reply_text("🌙 پیام شما ثبت شد. همکاران ما از ساعت ۸ صبح پاسخگوی شما خواهند بود.")
+            await update.message.reply_text("🌙 پیام شما ثبت شد. همکاران ما از ساعت ۸ صبح پاسخ خواهند داد.")
             db.rollback()
             return
 
-        # ذخیره پیام خام
+        # Save raw message
         raw = RawMessage(
             clinic_id=clinic_id, patient_id=patient_id, session_id=session_id,
             platform=platform, external_user_id=external_user_id,
@@ -161,8 +132,9 @@ async def process_patient_message(
         db.add(raw)
         db.flush()
 
-        # استخراج فکت با Groq
-        facts_json = await call_groq(FACTS_PROMPT.format(message=raw_text))
+        # Extract facts using Cloudflare
+        facts_prompt = FACTS_PROMPT.format(message=raw_text)
+        facts_json = await call_cloudflare(facts_prompt)
         facts_json = re.sub(r'```json\n?|```', '', facts_json.strip())
         try:
             facts = json.loads(facts_json)
@@ -188,7 +160,7 @@ async def process_patient_message(
             await update.message.reply_text("درخواست شما به منشی منتقل شد. لطفاً صبر کنید.")
             return
 
-        # به‌روزرسانی پروفایل بیمار
+        # Update patient profile
         profile = db.query(PatientProfile).filter_by(patient_id=patient_id).first()
         if not profile:
             profile = PatientProfile(patient_id=patient_id)
@@ -203,7 +175,7 @@ async def process_patient_message(
             profile.moving_avg_price_sensitivity = profile.moving_avg_price_sensitivity * 0.8 + facts['price_sensitivity'] * 0.2
         profile.conversation_count = (profile.conversation_count or 0) + 1
 
-        # ذخیره حافظه مهم
+        # Save important memory
         if facts.get('important_memory'):
             mem = facts['important_memory']
             memory = PatientMemory(
@@ -218,7 +190,7 @@ async def process_patient_message(
             )
             db.add(memory)
 
-        # محاسبه امتیاز لید
+        # Lead score
         lead_score = calculate_lead_score(
             intent=facts["intent"],
             service_interest=(facts["service"] != "none"),
@@ -228,40 +200,35 @@ async def process_patient_message(
             conversation_depth=profile.conversation_count
         )
 
-        # ذخیره رویداد
+        # Save event
         event = Event(
-            clinic_id=clinic_id, raw_message_id=raw.id, session_id=session_id,
-            patient_id=patient_id, intent_type=facts["intent"],
-            objection_category=facts["objection_category"], service=facts["service"],
-            extracted_question=facts.get("extracted_question"), lead_score=lead_score,
-            created_at=datetime.utcnow()
+            clinic_id=clinic_id, raw_message_id=raw.id, session_id=session_id, patient_id=patient_id,
+            intent_type=facts["intent"], objection_category=facts["objection_category"],
+            service=facts["service"], extracted_question=facts.get("extracted_question"),
+            lead_score=lead_score, created_at=datetime.utcnow()
         )
         db.add(event)
         db.flush()
 
-        # ایجاد لید در صورت نیاز
+        # Create lead if high score
         if lead_score >= LEAD_THRESHOLD:
             existing_lead = db.query(Lead).filter_by(patient_id=patient_id, pipeline_stage='new').first()
             if not existing_lead:
                 lead = Lead(
                     clinic_id=clinic_id, patient_id=patient_id, event_id=event.id,
                     service=facts["service"], lead_score=lead_score,
-                    objection_category=facts["objection_category"], pipeline_stage='new',
-                    created_at=datetime.utcnow()
+                    objection_category=facts["objection_category"], pipeline_stage='new'
                 )
                 db.add(lead)
                 db.flush()
-                db.add(PipelineHistory(lead_id=lead.id, stage='new', changed_at=datetime.utcnow()))
-                if facts["appointment_request"]:
-                    db.add(AppointmentRequest(
-                        clinic_id=clinic_id, lead_id=lead.id,
-                        suggested_date=datetime.utcnow(), status='pending'
-                    ))
+                db.add(PipelineHistory(lead_id=lead.id, stage='new'))
+                if facts.get("appointment_request"):
+                    db.add(AppointmentRequest(clinic_id=clinic_id, lead_id=lead.id, suggested_date=datetime.utcnow()))
 
-        # تولید پاسخ
+        # Generate reply
         answer = await generate_reply(clinic_id, facts.get("extracted_question") or raw_text, patient_id, lang)
 
-        # ثبت الگوی پاسخ
+        # Update outcome pattern
         ans_hash = hashlib.sha256(answer.encode()).hexdigest()
         pattern = db.query(OutcomePattern).filter_by(clinic_id=clinic_id, answer_pattern_hash=ans_hash).first()
         if pattern:
@@ -269,16 +236,15 @@ async def process_patient_message(
         else:
             pattern = OutcomePattern(
                 clinic_id=clinic_id, answer_pattern_hash=ans_hash,
-                total_count=1, conversion_rate=0.0, updated_at=datetime.utcnow()
+                total_count=1, conversion_rate=0.0
             )
             db.add(pattern)
-        db.commit()
 
-        # ارسال پاسخ
+        db.commit()
         await update.message.reply_text(answer)
 
     except Exception as e:
-        logger.error(f"خطا در پردازش پیام بیمار: {e}", exc_info=True)
+        logger.error(f"خطا در پردازش پیام: {e}", exc_info=True)
         db.rollback()
         await update.message.reply_text("خطایی رخ داده است. لطفاً دقایقی دیگر تلاش کنید.")
     finally:
