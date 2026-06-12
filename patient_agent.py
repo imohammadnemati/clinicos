@@ -1,17 +1,11 @@
-"""
-ماژول عامل بیمار (Patient Agent)
-مسئول پردازش پیام‌های دریافتی از بیماران:
-- استخراج اطلاعات با LLM (Gemini)
-- محاسبه امتیاز لید
-- ذخیره رویدادها، حافظه و پروفایل
-- تولید پاسخ طبیعی (با fallback)
-- مدیریت تراکنش واحد برای حفظ یکپارچگی داده
-"""
-
-import google.generativeai as genai
 import json
 import re
-from config import GEMINI_API_KEY, LEAD_THRESHOLD
+import requests
+import asyncio
+import hashlib
+import logging
+from datetime import datetime
+from config import GROQ_API_KEY, LEAD_THRESHOLD
 from database import SessionLocal
 from models import (
     Session as SessionModel,
@@ -33,19 +27,41 @@ from lead_scorer import calculate_lead_score
 from language_detector import detect_language
 from medical_safety import check_medical_risk
 from working_hours import can_auto_reply
-from datetime import datetime
-import hashlib
-import logging
-import asyncio
 
-# تنظیم لاگر
 logger = logging.getLogger(__name__)
 
-# تنظیم Gemini
-genai.configure(api_key=GEMINI_API_KEY)
-model = genai.GenerativeModel('gemini-1.5-flash')
+# ========== Groq API Configuration ==========
+GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
+GROQ_MODEL = "llama3-8b-8192"   # یا "mixtral-8x7b-32768" (همچنان رایگان)
 
-# پرامپت استخراج فکت (JSON خالص)
+async def call_groq(prompt: str, max_retries: int = 2) -> str:
+    """فراخوانی Groq API با retry و timeout"""
+    headers = {
+        "Authorization": f"Bearer {GROQ_API_KEY}",
+        "Content-Type": "application/json"
+    }
+    data = {
+        "model": GROQ_MODEL,
+        "messages": [{"role": "user", "content": prompt}],
+        "temperature": 0.7,
+        "max_tokens": 500
+    }
+    for attempt in range(max_retries):
+        try:
+            # استفاده از asyncio.to_thread برای جلوگیری از بلاک شدن حلقه رویداد
+            resp = await asyncio.to_thread(
+                requests.post, GROQ_URL, headers=headers, json=data, timeout=10
+            )
+            if resp.status_code == 200:
+                return resp.json()['choices'][0]['message']['content'].strip()
+            else:
+                logger.warning(f"Groq error {resp.status_code}: {resp.text}")
+        except Exception as e:
+            logger.warning(f"Groq attempt {attempt+1} failed: {e}")
+        await asyncio.sleep(1)
+    return "متشکرم. پیام شما ثبت شد. به زودی پاسخگو خواهیم بود."
+
+# ========== Prompts ==========
 FACTS_PROMPT = """
 You are an AI assistant for a cosmetic clinic. Extract structured facts from the patient message.
 Return ONLY valid JSON, no extra text, no explanation.
@@ -61,61 +77,31 @@ Return ONLY valid JSON, no extra text, no explanation.
   "fear_level": 0-10 or null,
   "trust_level": 0-10 or null,
   "price_sensitivity": 0-10 or null,
-  "important_memory": {"type": "wedding|husband_opposed|bad_experience|other", "text": "...", "importance": 1-10} or null
+  "important_memory": null
 }
 Message: {message}
 JSON:
 """
 
-# ========== توابع کمکی ==========
-
-async def call_gemini_with_retry(prompt: str, max_retries: int = 2, timeout_seconds: int = 10) -> str:
-    """فراخوانی Gemini با تلاش مجدد و timeout"""
-    for attempt in range(max_retries):
-        try:
-            response = await asyncio.wait_for(
-                asyncio.to_thread(model.generate_content, prompt),
-                timeout=timeout_seconds
-            )
-            return response.text.strip()
-        except Exception as e:
-            logger.warning(f"Gemini error (attempt {attempt+1}): {e}")
-            if attempt == max_retries - 1:
-                raise
-            await asyncio.sleep(1)
-    raise Exception("Gemini failed after retries")
-
 async def generate_reply(clinic_id: int, question: str, patient_id: int, lang: str) -> str:
-    """
-    تولید پاسخ طبیعی (با استفاده از دانش قبلی یا fallback)
-    """
+    """تولید پاسخ با استفاده از دانش قبلی یا Groq"""
+    # جستجو در دانش تأیید شده
     db = SessionLocal()
     try:
-        # جستجو در دانش تأیید شده
         knowledge = db.query(KnowledgeItem).filter(
             KnowledgeItem.clinic_id == clinic_id,
             KnowledgeItem.effective_date <= datetime.utcnow()
         ).order_by(KnowledgeItem.version.desc()).all()
         for k in knowledge:
             if k.question_text and k.question_text in question:
-                logger.debug(f"پاسخ از دانش قبلی: {k.question_text[:50]}...")
                 return k.answer_text
-    except Exception as e:
-        logger.error(f"خطا در جستجوی دانش: {e}")
     finally:
         db.close()
-
-    # پاسخ با Gemini (با fallback ساده)
+    # اگر دانش نبود، از Groq بخواه
     prompt = f"You are a clinic receptionist. Reply in {lang}, briefly, naturally, no medical advice: {question}"
-    try:
-        reply = await call_gemini_with_retry(prompt)
-        return reply
-    except Exception as e:
-        logger.error(f"خطا در تولید پاسخ با Gemini: {e}")
-        return "متشکرم. پیام شما ثبت شد. به زودی پاسخگو خواهیم بود."
+    return await call_groq(prompt)
 
 # ========== تابع اصلی پردازش پیام ==========
-
 async def process_patient_message(
     update,
     context,
@@ -123,21 +109,15 @@ async def process_patient_message(
     platform: str,
     external_user_id: str,
     raw_text: str,
-    media_url: str = None,
-    media_type: str = None,
-    transcript: str = None,
+    media_url=None,
+    media_type=None,
+    transcript=None,
     db=None
 ):
-    """
-    تابع اصلی پردازش پیام بیمار – همه عملیات در یک تراکنش انجام می‌شود.
-    در صورت خطا، rollback شده و هیچ داده‌ای ذخیره نمی‌شود.
-    """
-    external_db = db is not None
     if db is None:
         db = SessionLocal()
 
     try:
-        # ---------- مرحله 1: آماده‌سازی و بررسی‌های اولیه ----------
         user = update.effective_user
         lang = detect_language(raw_text)
         patient_id = get_or_create_patient(
@@ -145,7 +125,6 @@ async def process_patient_message(
             user.username, user.full_name, raw_text
         )
 
-        # به‌روزرسانی اطلاعات بیمار (بدون commit جداگانه)
         patient = db.query(Patient).filter_by(id=patient_id).first()
         if patient:
             patient.preferred_language = lang
@@ -162,19 +141,17 @@ async def process_patient_message(
                 reason="medical_risk", trigger=risk_level, escalated_to="doctor"
             )
             db.add(esc)
-            # این مورد نیاز به ذخیره لاگ دارد، اما چون خروج زودهنگام است، rollback کل تراکنش
-            # برای این مورد خاص می‌توان یک commit جداگانه انجام داد، ولی برای سادگی rollback
+            db.commit()
             await update.message.reply_text("⚠️ برای پاسخ به این سوال نیاز به بررسی پزشک دارید. لطفاً با کلینیک تماس بگیرید.")
-            db.rollback()
             return
 
-        # ساعات کاری
+        # بررسی ساعات کاری
         if not await can_auto_reply(clinic_id, session_id, db):
-            await update.message.reply_text("🌙 سلام.\nپیام شما ثبت شد. همکاران ما از ساعت ۸ صبح پاسخگوی شما خواهند بود.")
+            await update.message.reply_text("🌙 پیام شما ثبت شد. همکاران ما از ساعت ۸ صبح پاسخگوی شما خواهند بود.")
             db.rollback()
             return
 
-        # ---------- مرحله 2: ذخیره پیام خام ----------
+        # ذخیره پیام خام
         raw = RawMessage(
             clinic_id=clinic_id, patient_id=patient_id, session_id=session_id,
             platform=platform, external_user_id=external_user_id,
@@ -182,15 +159,14 @@ async def process_patient_message(
             transcript=transcript, created_at=datetime.utcnow()
         )
         db.add(raw)
-        db.flush()  # برای گرفتن raw.id
+        db.flush()
 
-        # ---------- مرحله 3: استخراج فکت با LLM ----------
+        # استخراج فکت با Groq
+        facts_json = await call_groq(FACTS_PROMPT.format(message=raw_text))
+        facts_json = re.sub(r'```json\n?|```', '', facts_json.strip())
         try:
-            facts_json = await call_gemini_with_retry(FACTS_PROMPT.format(message=raw_text))
-            facts_json = re.sub(r'```json\n?|```', '', facts_json.strip())
             facts = json.loads(facts_json)
-        except Exception as e:
-            logger.error(f"خطا در استخراج فکت: {e}")
+        except json.JSONDecodeError:
             facts = {
                 "intent": "inquiry",
                 "service": "none",
@@ -208,18 +184,17 @@ async def process_patient_message(
 
         if facts.get("requires_human"):
             db.query(SessionModel).filter_by(id=session_id).update({"requires_human": True})
+            db.commit()
             await update.message.reply_text("درخواست شما به منشی منتقل شد. لطفاً صبر کنید.")
-            db.rollback()
             return
 
-        # ---------- مرحله 4: به‌روزرسانی پروفایل بیمار و حافظه ----------
+        # به‌روزرسانی پروفایل بیمار
         profile = db.query(PatientProfile).filter_by(patient_id=patient_id).first()
         if not profile:
             profile = PatientProfile(patient_id=patient_id)
             db.add(profile)
             db.flush()
 
-        # به‌روزرسانی میانگین متحرک احساسات
         if facts.get('fear_level') is not None:
             profile.moving_avg_fear = profile.moving_avg_fear * 0.8 + facts['fear_level'] * 0.2
         if facts.get('trust_level') is not None:
@@ -243,7 +218,7 @@ async def process_patient_message(
             )
             db.add(memory)
 
-        # ---------- مرحله 5: محاسبه امتیاز لید و ذخیره رویداد ----------
+        # محاسبه امتیاز لید
         lead_score = calculate_lead_score(
             intent=facts["intent"],
             service_interest=(facts["service"] != "none"),
@@ -253,6 +228,7 @@ async def process_patient_message(
             conversation_depth=profile.conversation_count
         )
 
+        # ذخیره رویداد
         event = Event(
             clinic_id=clinic_id, raw_message_id=raw.id, session_id=session_id,
             patient_id=patient_id, intent_type=facts["intent"],
@@ -263,7 +239,7 @@ async def process_patient_message(
         db.add(event)
         db.flush()
 
-        # ---------- مرحله 6: ایجاد لید (در صورت احراز شرایط) ----------
+        # ایجاد لید در صورت نیاز
         if lead_score >= LEAD_THRESHOLD:
             existing_lead = db.query(Lead).filter_by(patient_id=patient_id, pipeline_stage='new').first()
             if not existing_lead:
@@ -282,22 +258,23 @@ async def process_patient_message(
                         suggested_date=datetime.utcnow(), status='pending'
                     ))
 
-        # ---------- مرحله 7: تولید پاسخ و به‌روزرسانی الگو ----------
+        # تولید پاسخ
         answer = await generate_reply(clinic_id, facts.get("extracted_question") or raw_text, patient_id, lang)
 
-        # ثبت الگوی پاسخ برای یادگیری آینده
+        # ثبت الگوی پاسخ
         ans_hash = hashlib.sha256(answer.encode()).hexdigest()
         pattern = db.query(OutcomePattern).filter_by(clinic_id=clinic_id, answer_pattern_hash=ans_hash).first()
         if pattern:
             pattern.total_count += 1
         else:
-            db.add(OutcomePattern(
+            pattern = OutcomePattern(
                 clinic_id=clinic_id, answer_pattern_hash=ans_hash,
-                total_count=1, conversion_rate=0.0
-            ))
-
-        # ---------- مرحله 8: نهایی کردن تراکنش و ارسال پاسخ ----------
+                total_count=1, conversion_rate=0.0, updated_at=datetime.utcnow()
+            )
+            db.add(pattern)
         db.commit()
+
+        # ارسال پاسخ
         await update.message.reply_text(answer)
 
     except Exception as e:
@@ -305,5 +282,5 @@ async def process_patient_message(
         db.rollback()
         await update.message.reply_text("خطایی رخ داده است. لطفاً دقایقی دیگر تلاش کنید.")
     finally:
-        if not external_db:
+        if db:
             db.close()
