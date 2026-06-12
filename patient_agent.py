@@ -48,13 +48,22 @@ async def call_cloudflare(prompt: str, max_retries: int = 2) -> str:
             resp = await asyncio.to_thread(requests.post, CLOUDFLARE_URL, headers=headers, json=data, timeout=10)
             if resp.status_code == 200:
                 result = resp.json()
-                # بررسی ساختار پاسخ Cloudflare
-                if 'result' in result and 'response' in result['result']:
-                    return result['result']['response'].strip()
-                elif 'result' in result and isinstance(result['result'], str):
-                    return result['result'].strip()
+                # ساختار پاسخ Cloudflare ممکن است دیکشنری با کلید 'result' باشد
+                if isinstance(result, dict):
+                    # گزینه 1: {'result': {'response': '...'}}
+                    if 'result' in result and isinstance(result['result'], dict) and 'response' in result['result']:
+                        return result['result']['response'].strip()
+                    # گزینه 2: {'result': '...'}
+                    elif 'result' in result and isinstance(result['result'], str):
+                        return result['result'].strip()
+                    # گزینه 3: خود دیکشنری مستقیماً حاوی پاسخ باشد (کمتر رایج)
+                    elif 'response' in result:
+                        return result['response'].strip()
+                # اگر رشته بود همان را برگردان
+                elif isinstance(result, str):
+                    return result.strip()
                 else:
-                    logger.warning(f"Unexpected Cloudflare response format: {result}")
+                    logger.warning(f"Unknown Cloudflare response format: {result}")
                     return "متشکرم. پیام شما ثبت شد. به زودی پاسخگو خواهیم بود."
             else:
                 logger.warning(f"Cloudflare error {resp.status_code}: {resp.text}")
@@ -63,7 +72,7 @@ async def call_cloudflare(prompt: str, max_retries: int = 2) -> str:
         await asyncio.sleep(1)
     return "متشکرم. پیام شما ثبت شد. به زودی پاسخگو خواهیم بود."
 
-# پرامپت استخراج فکت
+# پرامپت استخراج فکت (به انگلیسی برای دقت)
 FACTS_PROMPT = """
 You are an AI assistant for a cosmetic clinic. Extract structured facts from the patient message.
 Return ONLY valid JSON, no extra text, no explanation.
@@ -85,6 +94,14 @@ Message: {message}
 JSON:
 """
 
+# پرامپت پاسخ به فارسی (طبیعی و محاوره‌ای)
+REPLY_PROMPT_FA = """
+تو یک منشی حرفه‌ای و صمیمی کلینیک زیبایی هستی. با مشتری‌ها به فارسی و کاملاً محاوره‌ای و طبیعی صحبت کن، طوری که انگار یک انسان واقعی است. هرگز نگو "ربات هستم" یا "هوش مصنوعی". از کلمات ساده و روان استفاده کن، کوتاه و مفید. اگر سوال درباره قیمت است، بگو "قیمت بستگی به ناحیه و شرایط داره، لطفاً ناحیه مد نظرتون رو بفرمایید." اگر سوال پزشکی است که نیاز به پزشک دارد، بگو "برای پاسخ دقیق نیاز به معاینه توسط پزشک داریم. می‌تونید وقت مشاوره بگیرید؟"
+
+سوال بیمار: {question}
+پاسخ تو:
+"""
+
 async def generate_reply(clinic_id: int, question: str, patient_id: int, lang: str) -> str:
     db = SessionLocal()
     try:
@@ -97,7 +114,8 @@ async def generate_reply(clinic_id: int, question: str, patient_id: int, lang: s
                 return k.answer_text
     finally:
         db.close()
-    prompt = f"You are a clinic receptionist. Reply in {lang}, briefly, naturally, no medical advice: {question}"
+    # اگر دانش نبود، از Cloudflare با پرامپت فارسی بخواه
+    prompt = REPLY_PROMPT_FA.format(question=question)
     return await call_cloudflare(prompt)
 
 async def process_patient_message(update, context, clinic_id, platform, external_user_id, raw_text,
