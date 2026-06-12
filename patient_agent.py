@@ -75,7 +75,7 @@ Return ONLY valid JSON, no extra text, no explanation.
   "price_sensitivity": 0-10 or null,
   "important_memory": null
 }
-Important: Only set "requires_human": true if the patient explicitly asks to speak to a human, complains, or mentions a serious medical emergency.
+Important: Only set "requires_human": true if the patient explicitly asks to speak to a human, complains, or mentions a serious medical emergency (e.g., difficulty breathing, fainting, severe allergic reaction). Do NOT set requires_human for general fears like "I'm afraid of side effects".
 Context from previous conversation: {context}
 Current message: {message}
 JSON:
@@ -83,11 +83,11 @@ JSON:
 
 REPLY_PROMPTS = {
     'en': """You are a professional, warm, and friendly receptionist at a cosmetic clinic.
-You are already in a conversation with the patient. Do NOT start with a greeting like "Hello" unless this is the very first message of the conversation.
+You are already in a conversation with the patient. Do NOT start with a greeting like "Hello" unless this is the very first message.
 Continue the conversation naturally. Keep responses short, polite, and helpful.
-Use the conversation history to provide coherent answers.
-If the user asks about prices, say: "The price depends on the area and number of units. Could you please tell me which area you're interested in?"
-If the user asks medical questions that require a doctor, say: "For an accurate answer, you need to consult our doctor. Would you like to book a free consultation?"
+Use the conversation history to provide coherent answers. The history includes previous patient messages.
+If the user asks about common side effects or fears (e.g., droopy eyelid from Botox), explain calmly: "Botox is generally safe when injected by an experienced doctor. Temporary drooping is rare and usually resolves within a few weeks. Our doctor uses precise techniques to minimize risks."
+Only refer to a doctor if the question is about serious medical conditions (pregnancy, allergies, etc.).
 Only output the reply, nothing else.
 
 Conversation history (last exchanges):
@@ -96,10 +96,10 @@ Conversation history (last exchanges):
 Current patient message: {question}
 Your reply:""",
 
-    'fa': """تو یک منشی حرفه‌ای، گرم و صمیمی کلینیک زیبایی هستی. هم‌اکنون در حال گفتگو با بیمار هستی. مگر اینکه این اولین پیام گفتگو باشد، هیچ‌گاه با "سلام" یا "درود" شروع نکن. مکالمه را به طور طبیعی ادامه بده. پاسخ‌ها کوتاه، مؤدبانه و مفید باشند.
-از تاریخچه گفتگو برای پاسخ‌های پیوسته استفاده کن.
-اگر بیمار درباره قیمت پرسید بگو: "قیمت بستگی به ناحیه و شرایط داره، لطفاً ناحیه مد نظرتون رو بفرمایید."
-اگر سوال پزشکی است که نیاز به پزشک دارد بگو: "برای پاسخ دقیق نیاز به معاینه توسط پزشک داریم. می‌تونید وقت مشاوره بگیرید؟"
+    'fa': """تو یک منشی حرفه‌ای، گرم و صمیمی کلینیک زیبایی هستی. هم‌اکنون در حال گفتگو با بیمار هستی. مگر اینکه اولین پیام گفتگو باشد، هیچ‌گاه با "سلام" شروع نکن. مکالمه را طبیعی ادامه بده.
+از تاریخچه گفتگو برای پاسخ‌های پیوسته استفاده کن. تاریخچه شامل پیام‌های قبلی بیمار است.
+اگر بیمار از ترس‌های رایج مثل افتادگی پلک در بوتاکس پرسید، با آرامش توضیح بده: "بوتاکس معمولاً بی‌خطر است، افتادگی موقت پلک نادر است و ظرف چند هفته برطرف می‌شود. پزشک ما از تکنیک‌های دقیق برای کم کردن خطر استفاده می‌کند."
+فقط برای سوالات مربوط به بیماری‌های جدی (بارداری، حساسیت شدید، اورژانس) به پزشک ارجاع بده.
 فقط پاسخ را بنویس، بدون توضیح اضافه.
 
 تاریخچه گفتگو (چند پیام آخر):
@@ -108,10 +108,10 @@ Your reply:""",
 پیام فعلی بیمار: {question}
 پاسخ تو:""",
 
-    'ar': """أنت موظف استقبال محترم و ودود في عيادة تجميل. أنت الآن في محادثة مع المريض. لا تبدأ بـ "مرحباً" أو "أهلاً" إلا إذا كانت هذه أول رسالة في المحادثة. استمر في المحادثة بشكل طبيعي.
-استخدم تاريخ المحادثة للإجابة المستمرة.
-إذا سأل عن الأسعار قل: "السعر يعتمد على المنطقة وعدد الوحدات. هل تخبرني بالمنطقة التي تهتم بها؟"
-إذا سأل أسئلة طبية تحتاج إلى طبيب قل: "للحصول على إجابة دقيقة، تحتاج إلى استشارة طبيبنا. هل ترغب في حجز استشارة مجانية؟"
+    'ar': """أنت موظف استقبال محترم و ودود في عيادة تجميل. أنت الآن في محادثة مع المريض. لا تبدأ بـ "مرحباً" إلا إذا كانت أول رسالة. استمر في المحادثة بشكل طبيعي.
+استخدم تاريخ المحادثة للإجابة المستمرة. التاريخ يتضمن رسائل المريض السابقة.
+إذا سأل المريض عن مخاوف شائعة مثل تدلي الجفن من البوتوكس، اشرح بهدوء: "البوتوكس آمن عموماً، التدلي المؤقت نادر ويختفي خلال أسابيع. طبيبنا يستخدم تقنيات دقيقة لتقليل المخاطر."
+فقط للأسئلة عن حالات خطيرة (الحمل، الحساسية الشديدة، الطوارئ) أحيله إلى الطبيب.
 فقط أخرج الرد، لا شيء إضافي.
 
 تاريخ المحادثة (آخر رسالتين):
@@ -121,8 +121,8 @@ Your reply:""",
 ردك:"""
 }
 
-async def get_conversation_history(session_id: int, db, limit: int = 4) -> str:
-    """دریافت آخرین پیام‌های بیمار (بدون پاسخ‌های بات) برای context"""
+async def get_conversation_history(session_id: int, db, limit: int = 6) -> str:
+    """دریافت آخرین سوالات بیمار (برای تاریخچه)"""
     events = db.query(Event).filter(
         Event.session_id == session_id
     ).order_by(Event.created_at.desc()).limit(limit).all()
@@ -178,6 +178,7 @@ async def process_patient_message(update, context, clinic_id, platform, external
         session_id = get_or_create_session(clinic_id, patient_id)
         update_session_activity(session_id)
 
+        # ایمنی پزشکی (فقط موارد واقعاً خطرناک)
         is_risk, risk_level = await check_medical_risk(raw_text)
         if is_risk:
             db.add(EscalationLog(clinic_id=clinic_id, patient_id=patient_id, session_id=session_id,
@@ -205,14 +206,13 @@ async def process_patient_message(update, context, clinic_id, platform, external
         raw = RawMessage(
             clinic_id=clinic_id, patient_id=patient_id, session_id=session_id,
             platform=platform, external_user_id=external_user_id,
-            message_text=raw_text, media_url=media_url, media_type=media_type,
-            transcript=transcript, created_at=datetime.utcnow()
+            message_text=raw_text, created_at=datetime.utcnow()
         )
         db.add(raw)
         db.flush()
 
         # دریافت تاریخچه گفتگو
-        conversation_history = await get_conversation_history(session_id, db, limit=4)
+        conversation_history = await get_conversation_history(session_id, db, limit=6)
         prev_state = db.query(ConversationState).filter_by(session_id=session_id).first()
         context_str = ""
         if prev_state and prev_state.current_goal:
@@ -269,23 +269,19 @@ async def process_patient_message(update, context, clinic_id, platform, external
             profile.moving_avg_price_sensitivity = profile.moving_avg_price_sensitivity * 0.8 + facts['price_sensitivity'] * 0.2
         profile.conversation_count = (profile.conversation_count or 0) + 1
 
-        # اصلاح مهم: بررسی نوع important_memory
-        if facts.get('important_memory'):
+        if facts.get('important_memory') and isinstance(facts['important_memory'], dict):
             mem = facts['important_memory']
-            if isinstance(mem, dict):
-                memory = PatientMemory(
-                    patient_id=patient_id,
-                    memory_type=mem.get('type', 'other'),
-                    memory_text=mem.get('text', ''),
-                    importance_score=mem.get('importance', 5),
-                    mention_count=1,
-                    confidence=0.8,
-                    source='llm',
-                    created_at=datetime.utcnow()
-                )
-                db.add(memory)
-            else:
-                logger.warning(f"important_memory is not dict, ignoring: {mem}")
+            memory = PatientMemory(
+                patient_id=patient_id,
+                memory_type=mem.get('type', 'other'),
+                memory_text=mem.get('text', ''),
+                importance_score=mem.get('importance', 5),
+                mention_count=1,
+                confidence=0.8,
+                source='llm',
+                created_at=datetime.utcnow()
+            )
+            db.add(memory)
 
         lead_score = calculate_lead_score(
             intent=facts["intent"],
@@ -319,7 +315,7 @@ async def process_patient_message(update, context, clinic_id, platform, external
                 if facts.get("appointment_request"):
                     db.add(AppointmentRequest(clinic_id=clinic_id, lead_id=lead.id, suggested_date=datetime.utcnow()))
 
-        # تولید پاسخ
+        # تولید پاسخ نهایی با تاریخچه کامل
         answer = await generate_reply(clinic_id, facts.get("extracted_question") or raw_text, patient_id, lang, conversation_history)
 
         ans_hash = hashlib.sha256(answer.encode()).hexdigest()
