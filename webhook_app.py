@@ -1,13 +1,12 @@
 import os
-import sys
 import asyncio
 import threading
 import logging
 from flask import Flask, request, jsonify
 import requests
-from config import BOT_TOKEN, OWNER_TELEGRAM_ID
+from config import BOT_TOKEN
 from database import SessionLocal, init_db
-from models import Clinic, Staff
+from models import Clinic
 from patient_agent import process_patient_message
 
 logging.basicConfig(level=logging.INFO)
@@ -24,12 +23,12 @@ def get_or_create_default_clinic():
             clinic = Clinic(name="کلینیک پیش‌فرض", subdomain="default")
             db.add(clinic)
             db.commit()
-            logger.info(f"کلینیک پیش‌فرض با ID {clinic.id} ایجاد شد.")
+            logger.info("کلینیک پیش‌فرض ایجاد شد.")
         return clinic.id
     finally:
         db.close()
 
-# ========== کلاس‌های اصلاحی برای تطابق با patient_agent ==========
+# ========== کلاس‌های شبیه‌سازی برای تطابق با patient_agent ==========
 class DummyMessage:
     def __init__(self, text, chat_id):
         self.text = text
@@ -49,15 +48,8 @@ class DummyUpdate:
             'first_name': first_name,
             'full_name': first_name
         })()
-        self.message = DummyMessage(message_text, chat_id)   # <-- کلیدی
+        self.message = DummyMessage(message_text, chat_id)   # اصلاح کلیدی
         self.effective_message = self.message
-
-def run_async_in_thread(coro):
-    def _run():
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        loop.run_until_complete(coro)
-    threading.Thread(target=_run).start()
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
