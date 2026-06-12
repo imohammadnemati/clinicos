@@ -30,8 +30,8 @@ from working_hours import can_auto_reply
 
 logger = logging.getLogger(__name__)
 
-# Cloudflare Workers AI endpoint
-CLOUDFLARE_URL = f"https://api.cloudflare.com/client/v4/accounts/{CLOUDFLARE_ACCOUNT_ID}/ai/run/@cf/meta/llama-3-8b-instruct"
+# Cloudflare Workers AI endpoint (مدل جدید)
+CLOUDFLARE_URL = f"https://api.cloudflare.com/client/v4/accounts/{CLOUDFLARE_ACCOUNT_ID}/ai/run/@cf/meta/llama-3.2-3b-instruct"
 
 async def call_cloudflare(prompt: str, max_retries: int = 2) -> str:
     headers = {
@@ -56,6 +56,7 @@ async def call_cloudflare(prompt: str, max_retries: int = 2) -> str:
         await asyncio.sleep(1)
     return "متشکرم. پیام شما ثبت شد. به زودی پاسخگو خواهیم بود."
 
+# پرامپت استخراج فکت (با آکولادهای معمولی – در زمان استفاده با replace جایگزین می‌شود)
 FACTS_PROMPT = """
 You are an AI assistant for a cosmetic clinic. Extract structured facts from the patient message.
 Return ONLY valid JSON, no extra text, no explanation.
@@ -78,7 +79,6 @@ JSON:
 """
 
 async def generate_reply(clinic_id: int, question: str, patient_id: int, lang: str) -> str:
-    """تولید پاسخ با استفاده از دانش قبلی یا Cloudflare AI"""
     db = SessionLocal()
     try:
         knowledge = db.query(KnowledgeItem).filter(
@@ -106,7 +106,6 @@ async def process_patient_message(update, context, clinic_id, platform, external
         if patient:
             patient.preferred_language = lang
             patient.last_seen = datetime.utcnow()
-
         session_id = get_or_create_session(clinic_id, patient_id)
         update_session_activity(session_id)
 
@@ -135,9 +134,9 @@ async def process_patient_message(update, context, clinic_id, platform, external
         db.add(raw)
         db.flush()
 
-        # Extract facts using Cloudflare
-        facts_prompt = FACTS_PROMPT.format(message=raw_text)
-        facts_json = await call_cloudflare(facts_prompt)
+        # Extract facts using Cloudflare (با replace به جای format)
+        prompt_text = FACTS_PROMPT.replace("{message}", raw_text)
+        facts_json = await call_cloudflare(prompt_text)
         facts_json = re.sub(r'```json\n?|```', '', facts_json.strip())
         try:
             facts = json.loads(facts_json)
@@ -169,7 +168,6 @@ async def process_patient_message(update, context, clinic_id, platform, external
             profile = PatientProfile(patient_id=patient_id)
             db.add(profile)
             db.flush()
-
         if facts.get('fear_level') is not None:
             profile.moving_avg_fear = profile.moving_avg_fear * 0.8 + facts['fear_level'] * 0.2
         if facts.get('trust_level') is not None:
