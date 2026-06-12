@@ -1,5 +1,8 @@
-import json
-import re
+"""
+ماژول ایمنی پزشکی (Medical Safety Layer) با استفاده از Cloudflare Workers AI
+تشخیص سطح ریسک بر اساس متن پیام بیمار با مدل Llama 3.2
+"""
+
 import asyncio
 import logging
 from typing import Tuple, Optional
@@ -8,7 +11,7 @@ from config import CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID
 
 logger = logging.getLogger(__name__)
 
-# استفاده از مدل جدید (غیر منقضی)
+# استفاده از مدل جدید و معتبر (غیر منقضی)
 CLOUDFLARE_URL = f"https://api.cloudflare.com/client/v4/accounts/{CLOUDFLARE_ACCOUNT_ID}/ai/run/@cf/meta/llama-3.2-3b-instruct"
 
 RISK_PROMPT = """
@@ -25,6 +28,9 @@ Risk level (emergency/high/medium/low/none):
 """
 
 async def call_cloudflare_risk(prompt: str, max_retries: int = 2) -> str:
+    """
+    فراخوانی Cloudflare API برای تشخیص سطح ریسک
+    """
     headers = {
         "Authorization": f"Bearer {CLOUDFLARE_API_TOKEN}",
         "Content-Type": "application/json"
@@ -45,22 +51,38 @@ async def call_cloudflare_risk(prompt: str, max_retries: int = 2) -> str:
         except Exception as e:
             logger.warning(f"Cloudflare risk attempt {attempt+1} failed: {e}")
         await asyncio.sleep(1)
+    # در صورت خطا، فرض می‌کنیم ریسکی وجود ندارد
     return "none"
 
 async def check_medical_risk(text: str, use_llm: bool = True) -> Tuple[bool, Optional[str]]:
-    if not text or not use_llm:
+    """
+    تشخیص ریسک پزشکی با استفاده از Cloudflare AI
+    پارامترها:
+        text: متن پیام بیمار
+        use_llm: آیا از مدل استفاده شود (همیشه True برای Cloudflare)
+    خروجی:
+        (آیا ریسک وجود دارد؟, سطح ریسک)
+        سطوح: 'emergency', 'high', 'medium', 'low', None
+    """
+    if not text:
         return False, None
+
     prompt = RISK_PROMPT.format(message=text)
     risk_level = await call_cloudflare_risk(prompt)
+
     valid_levels = ['emergency', 'high', 'medium', 'low', 'none']
     if risk_level not in valid_levels:
-        logger.warning(f"Invalid risk output: {risk_level}")
+        logger.warning(f"خروجی نامعتبر از Cloudflare: {risk_level}")
         risk_level = 'none'
+
     if risk_level == 'none':
         return False, None
     return True, risk_level
 
 def get_risk_message(risk_level: str, lang: str = 'fa') -> str:
+    """
+    دریافت پیام مناسب برای هر سطح ریسک به زبان‌های فارسی، انگلیسی، عربی
+    """
     messages = {
         'emergency': {
             'fa': "🚨 این وضعیت نیاز به اقدام فوری پزشکی دارد. لطفاً فوراً با اورژانس تماس بگیرید یا به نزدیک‌ترین مرکز درمانی مراجعه کنید.",
@@ -84,3 +106,20 @@ def get_risk_message(risk_level: str, lang: str = 'fa') -> str:
         }
     }
     return messages.get(risk_level, {}).get(lang, messages['high']['fa'])
+
+
+# برای تست در صورت اجرای مستقیم
+if __name__ == "__main__":
+    async def test():
+        test_messages = [
+            "قیمت بوتاکس چنده؟",
+            "من باردارم میتونم بوتاکس انجام بدم؟",
+            "بعد از تزریق صورتم خیلی داغ شده و ورم کرده",
+            "تنگی نفس دارم",
+            "قرص آسپرین مصرف می‌کنم"
+        ]
+        for msg in test_messages:
+            has_risk, level = await check_medical_risk(msg)
+            print(f"متن: {msg}\nریسک: {level if has_risk else 'none'}\n{'-'*40}")
+
+    asyncio.run(test())
