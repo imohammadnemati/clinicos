@@ -48,7 +48,14 @@ async def call_cloudflare(prompt: str, max_retries: int = 2) -> str:
             resp = await asyncio.to_thread(requests.post, CLOUDFLARE_URL, headers=headers, json=data, timeout=10)
             if resp.status_code == 200:
                 result = resp.json()
-                return result['result']['response'].strip()
+                # بررسی ساختار پاسخ Cloudflare
+                if 'result' in result and 'response' in result['result']:
+                    return result['result']['response'].strip()
+                elif 'result' in result and isinstance(result['result'], str):
+                    return result['result'].strip()
+                else:
+                    logger.warning(f"Unexpected Cloudflare response format: {result}")
+                    return "متشکرم. پیام شما ثبت شد. به زودی پاسخگو خواهیم بود."
             else:
                 logger.warning(f"Cloudflare error {resp.status_code}: {resp.text}")
         except Exception as e:
@@ -56,7 +63,7 @@ async def call_cloudflare(prompt: str, max_retries: int = 2) -> str:
         await asyncio.sleep(1)
     return "متشکرم. پیام شما ثبت شد. به زودی پاسخگو خواهیم بود."
 
-# پرامپت استخراج فکت (با آکولادهای معمولی – در زمان استفاده با replace جایگزین می‌شود)
+# پرامپت استخراج فکت
 FACTS_PROMPT = """
 You are an AI assistant for a cosmetic clinic. Extract structured facts from the patient message.
 Return ONLY valid JSON, no extra text, no explanation.
@@ -134,7 +141,7 @@ async def process_patient_message(update, context, clinic_id, platform, external
         db.add(raw)
         db.flush()
 
-        # Extract facts using Cloudflare (با replace به جای format)
+        # Extract facts using Cloudflare
         prompt_text = FACTS_PROMPT.replace("{message}", raw_text)
         facts_json = await call_cloudflare(prompt_text)
         facts_json = re.sub(r'```json\n?|```', '', facts_json.strip())
