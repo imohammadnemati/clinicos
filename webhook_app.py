@@ -89,7 +89,7 @@ def webhook():
 
 @app.route('/set_webhook', methods=['GET'])
 def set_webhook():
-    railway_domain = os.environ.get('RAILWAY_PUBLIC_DOMAIN')
+    railway_domain = https://clinicos-production-9a22.up.railway.app
     if not railway_domain:
         railway_domain = "your-app-name.up.railway.app"   # 👈 نام واقعی اپ خود را اینجا بگذارید
     webhook_url = f"https://{railway_domain}/webhook"
