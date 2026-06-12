@@ -34,10 +34,7 @@ class DummyMessage:
         self.chat_id = chat_id
     async def reply_text(self, reply_text):
         url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-        try:
-            await asyncio.to_thread(requests.post, url, json={"chat_id": self.chat_id, "text": reply_text}, timeout=5)
-        except Exception as e:
-            logger.error(f"خطا در ارسال پاسخ: {e}")
+        await asyncio.to_thread(requests.post, url, json={"chat_id": self.chat_id, "text": reply_text}, timeout=5)
 
 class DummyUpdate:
     def __init__(self, user_id, username, first_name, message_text, chat_id):
@@ -83,7 +80,7 @@ def webhook():
             ))
         except Exception as e:
             logger.error(f"خطا در process_patient_message: {e}")
-            # ارسال پیام خطا به صورت همگام (با requests معمولی) چون در ترد جدا هستیم
+            # fallback با requests معمولی
             try:
                 requests.post(f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage", json={"chat_id": chat_id, "text": "خطایی رخ داده است. لطفاً دقایقی دیگر تلاش کنید."})
             except:
