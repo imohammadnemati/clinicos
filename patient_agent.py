@@ -30,9 +30,8 @@ from working_hours import can_auto_reply
 
 logger = logging.getLogger(__name__)
 
-# Groq API
 GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
-GROQ_MODEL = "llama3-70b-8192"  # کیفیت بالا، می‌توانید به "llama3-8b-8192" تغییر دهید برای سرعت بیشتر
+GROQ_MODEL = "llama3-70b-8192"  # یا "llama3-8b-8192"
 
 async def call_groq(prompt: str, max_retries: int = 2) -> str:
     headers = {
@@ -55,9 +54,8 @@ async def call_groq(prompt: str, max_retries: int = 2) -> str:
         except Exception as e:
             logger.warning(f"Groq attempt {attempt+1} failed: {e}")
         await asyncio.sleep(1)
-    return "An error occurred. Please try again later."  # fallback انگلیسی
+    return "An error occurred. Please try again later."
 
-# پرامپت استخراج فکت (همیشه انگلیسی برای دقت بالا)
 FACTS_PROMPT = """
 You are an AI assistant for a cosmetic clinic. Extract structured facts from the patient message.
 Return ONLY valid JSON, no extra text, no explanation.
@@ -79,7 +77,6 @@ Message: {message}
 JSON:
 """
 
-# پرامپت‌های پاسخ بر اساس زبان (طبیعی، محاوره‌ای، فروشگاهی)
 REPLY_PROMPTS = {
     'en': """You are a professional, warm, and friendly receptionist at a cosmetic clinic. 
 You speak to clients in English, naturally and conversationally, as if you are a real human. 
@@ -106,7 +103,6 @@ Your reply:""",
 async def generate_reply(clinic_id: int, question: str, patient_id: int, lang: str) -> str:
     db = SessionLocal()
     try:
-        # جستجو در دانش قبلی
         knowledge = db.query(KnowledgeItem).filter(
             KnowledgeItem.clinic_id == clinic_id,
             KnowledgeItem.effective_date <= datetime.utcnow()
@@ -116,9 +112,7 @@ async def generate_reply(clinic_id: int, question: str, patient_id: int, lang: s
                 return k.answer_text
     finally:
         db.close()
-    # انتخاب پرامپت مناسب بر اساس زبان (پیش‌فرض انگلیسی)
-    prompt_template = REPLY_PROMPTS.get(lang, REPLY_PROMPTS['en'])
-    prompt = prompt_template.format(question=question)
+    prompt = REPLY_PROMPTS.get(lang, REPLY_PROMPTS['en']).format(question=question)
     return await call_groq(prompt)
 
 async def process_patient_message(update, context, clinic_id, platform, external_user_id, raw_text,
@@ -126,13 +120,12 @@ async def process_patient_message(update, context, clinic_id, platform, external
     if db is None:
         db = SessionLocal()
     try:
-        # پاسخ به دستور /start به انگلیسی
         if raw_text.strip().startswith('/start'):
             await update.message.reply_text("Hello! 🌷 Welcome to our clinic. How can I assist you today?")
             return
 
         user = update.effective_user
-        lang = detect_language(raw_text)  # تشخیص زبان (fa/en/ar)
+        lang = detect_language(raw_text)
         patient_id = get_or_create_patient(clinic_id, platform, external_user_id,
                                            user.username, user.full_name, raw_text)
         patient = db.query(Patient).filter_by(id=patient_id).first()
@@ -142,13 +135,11 @@ async def process_patient_message(update, context, clinic_id, platform, external
         session_id = get_or_create_session(clinic_id, patient_id)
         update_session_activity(session_id)
 
-        # Medical safety (فقط کلمات کلیدی)
         is_risk, risk_level = await check_medical_risk(raw_text)
         if is_risk:
             db.add(EscalationLog(clinic_id=clinic_id, patient_id=patient_id, session_id=session_id,
                                  reason="medical_risk", trigger=risk_level, escalated_to="doctor"))
             db.commit()
-            # پیام هشدار به زبان تشخیص داده شده
             risk_msg = {
                 'fa': "⚠️ برای پاسخ به این سوال نیاز به بررسی پزشک دارید. لطفاً با کلینیک تماس بگیرید.",
                 'en': "⚠️ This question requires a doctor's review. Please contact the clinic.",
@@ -157,10 +148,9 @@ async def process_patient_message(update, context, clinic_id, platform, external
             await update.message.reply_text(risk_msg)
             return
 
-        # بررسی ساعات کاری
         if not await can_auto_reply(clinic_id, session_id, db):
             out_msg = {
-                'fa': "🌙 پیام شما ثبت شد. همکاران ما از ساعت ۸ صبح پاسخگوی شما خواهند بود.",
+                'fa': "🌙 پیام شما ثبت شد. همکاران ما از ساعت ۸ صبح پاسخگو خواهند بود.",
                 'en': "🌙 Your message has been recorded. Our team will respond from 8 AM.",
                 'ar': "🌙 تم تسجيل رسالتك. سيقوم فريقنا بالرد اعتباراً من الساعة 8 صباحاً."
             }.get(lang, "🌙 Your message has been recorded. Our team will respond from 8 AM.")
@@ -168,7 +158,6 @@ async def process_patient_message(update, context, clinic_id, platform, external
             db.rollback()
             return
 
-        # ذخیره پیام خام
         raw = RawMessage(
             clinic_id=clinic_id, patient_id=patient_id, session_id=session_id,
             platform=platform, external_user_id=external_user_id,
@@ -178,7 +167,6 @@ async def process_patient_message(update, context, clinic_id, platform, external
         db.add(raw)
         db.flush()
 
-        # استخراج فکت با Groq (انگلیسی)
         prompt_text = FACTS_PROMPT.replace("{message}", raw_text)
         facts_json = await call_groq(prompt_text)
         facts_json = re.sub(r'```json\n?|```', '', facts_json.strip())
@@ -211,7 +199,6 @@ async def process_patient_message(update, context, clinic_id, platform, external
             await update.message.reply_text(human_msg)
             return
 
-        # به‌روزرسانی پروفایل بیمار
         profile = db.query(PatientProfile).filter_by(patient_id=patient_id).first()
         if not profile:
             profile = PatientProfile(patient_id=patient_id)
@@ -225,7 +212,6 @@ async def process_patient_message(update, context, clinic_id, platform, external
             profile.moving_avg_price_sensitivity = profile.moving_avg_price_sensitivity * 0.8 + facts['price_sensitivity'] * 0.2
         profile.conversation_count = (profile.conversation_count or 0) + 1
 
-        # ذخیره حافظه مهم
         if facts.get('important_memory'):
             mem = facts['important_memory']
             memory = PatientMemory(
@@ -240,7 +226,6 @@ async def process_patient_message(update, context, clinic_id, platform, external
             )
             db.add(memory)
 
-        # امتیاز لید
         lead_score = calculate_lead_score(
             intent=facts["intent"],
             service_interest=(facts["service"] != "none"),
@@ -250,7 +235,6 @@ async def process_patient_message(update, context, clinic_id, platform, external
             conversation_depth=profile.conversation_count
         )
 
-        # ذخیره رویداد
         event = Event(
             clinic_id=clinic_id, raw_message_id=raw.id, session_id=session_id, patient_id=patient_id,
             intent_type=facts["intent"], objection_category=facts["objection_category"],
@@ -260,7 +244,6 @@ async def process_patient_message(update, context, clinic_id, platform, external
         db.add(event)
         db.flush()
 
-        # ایجاد لید در صورت امتیاز بالا
         if lead_score >= LEAD_THRESHOLD:
             existing_lead = db.query(Lead).filter_by(patient_id=patient_id, pipeline_stage='new').first()
             if not existing_lead:
@@ -275,10 +258,8 @@ async def process_patient_message(update, context, clinic_id, platform, external
                 if facts.get("appointment_request"):
                     db.add(AppointmentRequest(clinic_id=clinic_id, lead_id=lead.id, suggested_date=datetime.utcnow()))
 
-        # تولید پاسخ نهایی به زبان تشخیص داده شده
         answer = await generate_reply(clinic_id, facts.get("extracted_question") or raw_text, patient_id, lang)
 
-        # ثبت الگوی پاسخ برای یادگیری آینده
         ans_hash = hashlib.sha256(answer.encode()).hexdigest()
         pattern = db.query(OutcomePattern).filter_by(clinic_id=clinic_id, answer_pattern_hash=ans_hash).first()
         if pattern:
