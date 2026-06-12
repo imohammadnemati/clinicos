@@ -32,10 +32,10 @@ class DummyMessage:
     def __init__(self, text, chat_id):
         self.text = text
         self.chat_id = chat_id
-    def reply_text(self, reply_text):
+    async def reply_text(self, reply_text):
         url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
         try:
-            requests.post(url, json={"chat_id": self.chat_id, "text": reply_text}, timeout=5)
+            await asyncio.to_thread(requests.post, url, json={"chat_id": self.chat_id, "text": reply_text}, timeout=5)
         except Exception as e:
             logger.error(f"خطا در ارسال پاسخ: {e}")
 
@@ -66,8 +66,10 @@ def webhook():
     dummy_update = DummyUpdate(user_id, username, first_name, text, chat_id)
     db_session = SessionLocal()
     def process():
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
         try:
-            asyncio.run(process_patient_message(
+            loop.run_until_complete(process_patient_message(
                 update=dummy_update,
                 context=None,
                 clinic_id=clinic_id,
@@ -81,7 +83,11 @@ def webhook():
             ))
         except Exception as e:
             logger.error(f"خطا در process_patient_message: {e}")
-            dummy_update.message.reply_text("خطایی رخ داده است. لطفاً دقایقی دیگر تلاش کنید.")
+            # ارسال پیام خطا به صورت همگام (با requests معمولی) چون در ترد جدا هستیم
+            try:
+                requests.post(f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage", json={"chat_id": chat_id, "text": "خطایی رخ داده است. لطفاً دقایقی دیگر تلاش کنید."})
+            except:
+                pass
         finally:
             db_session.close()
     threading.Thread(target=process).start()
