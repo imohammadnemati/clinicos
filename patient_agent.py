@@ -5,7 +5,7 @@ import hashlib
 import logging
 from datetime import datetime
 import requests
-from config import CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID, LEAD_THRESHOLD
+from config import GROQ_API_KEY, LEAD_THRESHOLD
 from database import SessionLocal
 from models import (
     Session as SessionModel,
@@ -30,49 +30,34 @@ from working_hours import can_auto_reply
 
 logger = logging.getLogger(__name__)
 
-# Cloudflare Workers AI endpoint (مدل جدید)
-CLOUDFLARE_URL = f"https://api.cloudflare.com/client/v4/accounts/{CLOUDFLARE_ACCOUNT_ID}/ai/run/@cf/meta/llama-3.2-3b-instruct"
+# Groq API
+GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
+GROQ_MODEL = "llama3-70b-8192"  # کیفیت بالا، می‌توانید به "llama3-8b-8192" تغییر دهید برای سرعت بیشتر
 
-async def call_cloudflare(prompt: str, max_retries: int = 2) -> str:
+async def call_groq(prompt: str, max_retries: int = 2) -> str:
     headers = {
-        "Authorization": f"Bearer {CLOUDFLARE_API_TOKEN}",
+        "Authorization": f"Bearer {GROQ_API_KEY}",
         "Content-Type": "application/json"
     }
     data = {
+        "model": GROQ_MODEL,
         "messages": [{"role": "user", "content": prompt}],
-        "max_tokens": 500,
-        "temperature": 0.7
+        "temperature": 0.7,
+        "max_tokens": 500
     }
     for attempt in range(max_retries):
         try:
-            resp = await asyncio.to_thread(requests.post, CLOUDFLARE_URL, headers=headers, json=data, timeout=10)
+            resp = await asyncio.to_thread(requests.post, GROQ_URL, headers=headers, json=data, timeout=15)
             if resp.status_code == 200:
-                result = resp.json()
-                # ساختار پاسخ Cloudflare ممکن است دیکشنری با کلید 'result' باشد
-                if isinstance(result, dict):
-                    # گزینه 1: {'result': {'response': '...'}}
-                    if 'result' in result and isinstance(result['result'], dict) and 'response' in result['result']:
-                        return result['result']['response'].strip()
-                    # گزینه 2: {'result': '...'}
-                    elif 'result' in result and isinstance(result['result'], str):
-                        return result['result'].strip()
-                    # گزینه 3: خود دیکشنری مستقیماً حاوی پاسخ باشد (کمتر رایج)
-                    elif 'response' in result:
-                        return result['response'].strip()
-                # اگر رشته بود همان را برگردان
-                elif isinstance(result, str):
-                    return result.strip()
-                else:
-                    logger.warning(f"Unknown Cloudflare response format: {result}")
-                    return "متشکرم. پیام شما ثبت شد. به زودی پاسخگو خواهیم بود."
+                return resp.json()['choices'][0]['message']['content'].strip()
             else:
-                logger.warning(f"Cloudflare error {resp.status_code}: {resp.text}")
+                logger.warning(f"Groq error {resp.status_code}: {resp.text}")
         except Exception as e:
-            logger.warning(f"Cloudflare attempt {attempt+1} failed: {e}")
+            logger.warning(f"Groq attempt {attempt+1} failed: {e}")
         await asyncio.sleep(1)
-    return "متشکرم. پیام شما ثبت شد. به زودی پاسخگو خواهیم بود."
+    return "An error occurred. Please try again later."  # fallback انگلیسی
 
-# پرامپت استخراج فکت (به انگلیسی برای دقت)
+# پرامپت استخراج فکت (همیشه انگلیسی برای دقت بالا)
 FACTS_PROMPT = """
 You are an AI assistant for a cosmetic clinic. Extract structured facts from the patient message.
 Return ONLY valid JSON, no extra text, no explanation.
@@ -94,17 +79,34 @@ Message: {message}
 JSON:
 """
 
-# پرامپت پاسخ به فارسی (طبیعی و محاوره‌ای)
-REPLY_PROMPT_FA = """
-تو یک منشی حرفه‌ای و صمیمی کلینیک زیبایی هستی. با مشتری‌ها به فارسی و کاملاً محاوره‌ای و طبیعی صحبت کن، طوری که انگار یک انسان واقعی است. هرگز نگو "ربات هستم" یا "هوش مصنوعی". از کلمات ساده و روان استفاده کن، کوتاه و مفید. اگر سوال درباره قیمت است، بگو "قیمت بستگی به ناحیه و شرایط داره، لطفاً ناحیه مد نظرتون رو بفرمایید." اگر سوال پزشکی است که نیاز به پزشک دارد، بگو "برای پاسخ دقیق نیاز به معاینه توسط پزشک داریم. می‌تونید وقت مشاوره بگیرید؟"
+# پرامپت‌های پاسخ بر اساس زبان (طبیعی، محاوره‌ای، فروشگاهی)
+REPLY_PROMPTS = {
+    'en': """You are a professional, warm, and friendly receptionist at a cosmetic clinic. 
+You speak to clients in English, naturally and conversationally, as if you are a real human. 
+Never say "I am a robot" or "artificial intelligence". Keep responses short, polite, and helpful. 
+If the user asks about prices, say: "The price depends on the area and number of units. Could you please tell me which area you're interested in?" 
+If the user asks medical questions that require a doctor, say: "For an accurate answer, you need to consult our doctor. Would you like to book a free consultation?" 
+If the user greets you (hello, hi, good morning), respond warmly and ask how you can help. 
+Only output the reply, nothing else.
+
+Patient question: {question}
+Your reply:""",
+
+    'fa': """تو یک منشی حرفه‌ای، گرم و صمیمی کلینیک زیبایی هستی. با مشتری‌ها به فارسی و کاملاً محاوره‌ای و طبیعی صحبت کن، طوری که انگار یک انسان واقعی است. هرگز نگو "ربات هستم" یا "هوش مصنوعی". از کلمات ساده و روان استفاده کن، کوتاه و مفید. اگر سوال درباره قیمت است، بگو: "قیمت بستگی به ناحیه و شرایط داره، لطفاً ناحیه مد نظرتون رو بفرمایید." اگر سوال پزشکی است که نیاز به پزشک دارد، بگو: "برای پاسخ دقیق نیاز به معاینه توسط پزشک داریم. می‌تونید وقت مشاوره بگیرید؟" اگر مشتری سلام کرد، گرم و دوستانه پاسخ بده. لطفاً فقط پاسخ را بنویس، بدون توضیح اضافه.
 
 سوال بیمار: {question}
-پاسخ تو:
-"""
+پاسخ تو:""",
+
+    'ar': """أنت موظف استقبال محترم و ودود في عيادة تجميل. تتحدث مع العملاء بالعربية، بشكل طبيعي ومحادث، كما لو كنت إنساناً حقيقياً. لا تقل أبداً "أنا روبوت" أو "ذكاء اصطناعي". استخدم كلمات بسيطة وسلسة، قصيرة ومفيدة. إذا سأل المستخدم عن الأسعار، قل: "السعر يعتمد على المنطقة وعدد الوحدات. هل تخبرني بالمنطقة التي تهتم بها؟" إذا سأل أسئلة طبية تحتاج إلى طبيب، قل: "للحصول على إجابة دقيقة، تحتاج إلى استشارة طبيبنا. هل ترغب في حجز استشارة مجانية؟" إذا رحب بك المستخدم (مرحباً، أهلين)، رد بحرارة واسأل كيف يمكنك المساعدة. فقط أخرج الرد، لا شيء إضافي.
+
+سؤال المريض: {question}
+ردك:"""
+}
 
 async def generate_reply(clinic_id: int, question: str, patient_id: int, lang: str) -> str:
     db = SessionLocal()
     try:
+        # جستجو در دانش قبلی
         knowledge = db.query(KnowledgeItem).filter(
             KnowledgeItem.clinic_id == clinic_id,
             KnowledgeItem.effective_date <= datetime.utcnow()
@@ -114,17 +116,23 @@ async def generate_reply(clinic_id: int, question: str, patient_id: int, lang: s
                 return k.answer_text
     finally:
         db.close()
-    # اگر دانش نبود، از Cloudflare با پرامپت فارسی بخواه
-    prompt = REPLY_PROMPT_FA.format(question=question)
-    return await call_cloudflare(prompt)
+    # انتخاب پرامپت مناسب بر اساس زبان (پیش‌فرض انگلیسی)
+    prompt_template = REPLY_PROMPTS.get(lang, REPLY_PROMPTS['en'])
+    prompt = prompt_template.format(question=question)
+    return await call_groq(prompt)
 
 async def process_patient_message(update, context, clinic_id, platform, external_user_id, raw_text,
                                   media_url=None, media_type=None, transcript=None, db=None):
     if db is None:
         db = SessionLocal()
     try:
+        # پاسخ به دستور /start به انگلیسی
+        if raw_text.strip().startswith('/start'):
+            await update.message.reply_text("Hello! 🌷 Welcome to our clinic. How can I assist you today?")
+            return
+
         user = update.effective_user
-        lang = detect_language(raw_text)
+        lang = detect_language(raw_text)  # تشخیص زبان (fa/en/ar)
         patient_id = get_or_create_patient(clinic_id, platform, external_user_id,
                                            user.username, user.full_name, raw_text)
         patient = db.query(Patient).filter_by(id=patient_id).first()
@@ -134,22 +142,33 @@ async def process_patient_message(update, context, clinic_id, platform, external
         session_id = get_or_create_session(clinic_id, patient_id)
         update_session_activity(session_id)
 
-        # Medical safety
+        # Medical safety (فقط کلمات کلیدی)
         is_risk, risk_level = await check_medical_risk(raw_text)
         if is_risk:
             db.add(EscalationLog(clinic_id=clinic_id, patient_id=patient_id, session_id=session_id,
                                  reason="medical_risk", trigger=risk_level, escalated_to="doctor"))
             db.commit()
-            await update.message.reply_text("⚠️ برای پاسخ به این سوال نیاز به بررسی پزشک دارید. لطفاً با کلینیک تماس بگیرید.")
+            # پیام هشدار به زبان تشخیص داده شده
+            risk_msg = {
+                'fa': "⚠️ برای پاسخ به این سوال نیاز به بررسی پزشک دارید. لطفاً با کلینیک تماس بگیرید.",
+                'en': "⚠️ This question requires a doctor's review. Please contact the clinic.",
+                'ar': "⚠️ هذا السؤال يحتاج إلى مراجعة الطبيب. يرجى الاتصال بالعيادة."
+            }.get(lang, "⚠️ This question requires a doctor's review. Please contact the clinic.")
+            await update.message.reply_text(risk_msg)
             return
 
-        # Working hours
+        # بررسی ساعات کاری
         if not await can_auto_reply(clinic_id, session_id, db):
-            await update.message.reply_text("🌙 پیام شما ثبت شد. همکاران ما از ساعت ۸ صبح پاسخگوی شما خواهند بود.")
+            out_msg = {
+                'fa': "🌙 پیام شما ثبت شد. همکاران ما از ساعت ۸ صبح پاسخگوی شما خواهند بود.",
+                'en': "🌙 Your message has been recorded. Our team will respond from 8 AM.",
+                'ar': "🌙 تم تسجيل رسالتك. سيقوم فريقنا بالرد اعتباراً من الساعة 8 صباحاً."
+            }.get(lang, "🌙 Your message has been recorded. Our team will respond from 8 AM.")
+            await update.message.reply_text(out_msg)
             db.rollback()
             return
 
-        # Save raw message
+        # ذخیره پیام خام
         raw = RawMessage(
             clinic_id=clinic_id, patient_id=patient_id, session_id=session_id,
             platform=platform, external_user_id=external_user_id,
@@ -159,9 +178,9 @@ async def process_patient_message(update, context, clinic_id, platform, external
         db.add(raw)
         db.flush()
 
-        # Extract facts using Cloudflare
+        # استخراج فکت با Groq (انگلیسی)
         prompt_text = FACTS_PROMPT.replace("{message}", raw_text)
-        facts_json = await call_cloudflare(prompt_text)
+        facts_json = await call_groq(prompt_text)
         facts_json = re.sub(r'```json\n?|```', '', facts_json.strip())
         try:
             facts = json.loads(facts_json)
@@ -184,10 +203,15 @@ async def process_patient_message(update, context, clinic_id, platform, external
         if facts.get("requires_human"):
             db.query(SessionModel).filter_by(id=session_id).update({"requires_human": True})
             db.commit()
-            await update.message.reply_text("درخواست شما به منشی منتقل شد. لطفاً صبر کنید.")
+            human_msg = {
+                'fa': "درخواست شما به منشی منتقل شد. لطفاً صبر کنید.",
+                'en': "Your request has been forwarded to our secretary. Please wait.",
+                'ar': "تم تحويل طلبك إلى السكرتير. يرجى الانتظار."
+            }.get(lang, "Your request has been forwarded to our secretary. Please wait.")
+            await update.message.reply_text(human_msg)
             return
 
-        # Update patient profile
+        # به‌روزرسانی پروفایل بیمار
         profile = db.query(PatientProfile).filter_by(patient_id=patient_id).first()
         if not profile:
             profile = PatientProfile(patient_id=patient_id)
@@ -201,7 +225,7 @@ async def process_patient_message(update, context, clinic_id, platform, external
             profile.moving_avg_price_sensitivity = profile.moving_avg_price_sensitivity * 0.8 + facts['price_sensitivity'] * 0.2
         profile.conversation_count = (profile.conversation_count or 0) + 1
 
-        # Save important memory
+        # ذخیره حافظه مهم
         if facts.get('important_memory'):
             mem = facts['important_memory']
             memory = PatientMemory(
@@ -216,7 +240,7 @@ async def process_patient_message(update, context, clinic_id, platform, external
             )
             db.add(memory)
 
-        # Lead score
+        # امتیاز لید
         lead_score = calculate_lead_score(
             intent=facts["intent"],
             service_interest=(facts["service"] != "none"),
@@ -226,7 +250,7 @@ async def process_patient_message(update, context, clinic_id, platform, external
             conversation_depth=profile.conversation_count
         )
 
-        # Save event
+        # ذخیره رویداد
         event = Event(
             clinic_id=clinic_id, raw_message_id=raw.id, session_id=session_id, patient_id=patient_id,
             intent_type=facts["intent"], objection_category=facts["objection_category"],
@@ -236,7 +260,7 @@ async def process_patient_message(update, context, clinic_id, platform, external
         db.add(event)
         db.flush()
 
-        # Create lead if high score
+        # ایجاد لید در صورت امتیاز بالا
         if lead_score >= LEAD_THRESHOLD:
             existing_lead = db.query(Lead).filter_by(patient_id=patient_id, pipeline_stage='new').first()
             if not existing_lead:
@@ -251,10 +275,10 @@ async def process_patient_message(update, context, clinic_id, platform, external
                 if facts.get("appointment_request"):
                     db.add(AppointmentRequest(clinic_id=clinic_id, lead_id=lead.id, suggested_date=datetime.utcnow()))
 
-        # Generate reply
+        # تولید پاسخ نهایی به زبان تشخیص داده شده
         answer = await generate_reply(clinic_id, facts.get("extracted_question") or raw_text, patient_id, lang)
 
-        # Update outcome pattern
+        # ثبت الگوی پاسخ برای یادگیری آینده
         ans_hash = hashlib.sha256(answer.encode()).hexdigest()
         pattern = db.query(OutcomePattern).filter_by(clinic_id=clinic_id, answer_pattern_hash=ans_hash).first()
         if pattern:
@@ -272,7 +296,7 @@ async def process_patient_message(update, context, clinic_id, platform, external
     except Exception as e:
         logger.error(f"خطا در پردازش پیام: {e}", exc_info=True)
         db.rollback()
-        await update.message.reply_text("خطایی رخ داده است. لطفاً دقایقی دیگر تلاش کنید.")
+        await update.message.reply_text("An error occurred. Please try again later.")
     finally:
         if db:
             db.close()
