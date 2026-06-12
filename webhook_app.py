@@ -28,7 +28,6 @@ def get_or_create_default_clinic():
     finally:
         db.close()
 
-# ========== کلاس‌های شبیه‌سازی برای تطابق با patient_agent ==========
 class DummyMessage:
     def __init__(self, text, chat_id):
         self.text = text
@@ -48,7 +47,7 @@ class DummyUpdate:
             'first_name': first_name,
             'full_name': first_name
         })()
-        self.message = DummyMessage(message_text, chat_id)   # اصلاح کلیدی
+        self.message = DummyMessage(message_text, chat_id)
         self.effective_message = self.message
 
 @app.route('/webhook', methods=['POST'])
@@ -92,7 +91,7 @@ def webhook():
 def set_webhook():
     railway_domain = os.environ.get('RAILWAY_PUBLIC_DOMAIN')
     if not railway_domain:
-        railway_domain = "clinicos-production-d6a1.up.railway.app"  # آدرس واقعی خود را بگذارید
+        railway_domain = "your-app-name.up.railway.app"   # 👈 نام واقعی اپ خود را اینجا بگذارید
     webhook_url = f"https://{railway_domain}/webhook"
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/setWebhook?url={webhook_url}"
     try:
