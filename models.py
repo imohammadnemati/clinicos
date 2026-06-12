@@ -69,6 +69,10 @@ class Session(Base):
     requires_human = Column(Boolean, default=False)
     conversation_status = Column(String(20), default='active')
     last_activity = Column(DateTime, default=datetime.utcnow)
+    __table_args__ = (
+        Index('idx_session_patient_active', 'patient_id', 'is_active'),
+        Index('idx_session_last_activity', 'last_activity'),
+    )
 
 
 class RawMessage(Base):
@@ -86,9 +90,9 @@ class RawMessage(Base):
     transcript = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     __table_args__ = (
-        Index('idx_raw_clinic_patient', 'clinic_id', 'patient_id'),
-        Index('idx_raw_created_at', 'created_at'),
+        Index('idx_raw_patient', 'patient_id'),
         Index('idx_raw_session', 'session_id'),
+        Index('idx_raw_created', 'created_at'),
     )
 
 
@@ -106,9 +110,9 @@ class Event(Base):
     lead_score = Column(Float)
     created_at = Column(DateTime, default=datetime.utcnow)
     __table_args__ = (
-        Index('idx_event_clinic_patient', 'clinic_id', 'patient_id'),
-        Index('idx_event_created', 'created_at'),
+        Index('idx_event_patient', 'patient_id'),
         Index('idx_event_session', 'session_id'),
+        Index('idx_event_created', 'created_at'),
     )
 
 
@@ -123,7 +127,7 @@ class PatientProfile(Base):
     moving_avg_trust = Column(Float, default=5.0)
     moving_avg_price_sensitivity = Column(Float, default=5.0)
     conversation_count = Column(Integer, default=0)
-    updated_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
 class PatientMemory(Base):
@@ -139,6 +143,10 @@ class PatientMemory(Base):
     embedding_blob = Column(Text, nullable=True)
     expires_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
+    __table_args__ = (
+        Index('idx_memory_patient', 'patient_id'),
+        Index('idx_memory_importance', 'importance_score'),
+    )
 
 
 class ConversationState(Base):
@@ -165,6 +173,10 @@ class Lead(Base):
     recovery_attempts = Column(Integer, default=0)
     last_followup = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
+    __table_args__ = (
+        Index('idx_lead_patient', 'patient_id'),
+        Index('idx_lead_stage', 'pipeline_stage'),
+    )
 
 
 class PipelineHistory(Base):
@@ -189,6 +201,10 @@ class Appointment(Base):
     reminder_sent = Column(Boolean, default=False)
     no_show = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.utcnow)
+    __table_args__ = (
+        Index('idx_appointment_date', 'appointment_date'),
+        Index('idx_appointment_status', 'status'),
+    )
 
 
 class AppointmentRequest(Base):
@@ -382,8 +398,7 @@ class ObjectionLog(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
-# ========== مدل‌های Content Brain (اختیاری - فقط در صورت نیاز) ==========
-
+# ========== مدل‌های Content Brain (اختیاری) ==========
 class ContentAsset(Base):
     __tablename__ = 'content_assets'
     id = Column(Integer, primary_key=True)
