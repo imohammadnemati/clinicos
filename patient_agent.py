@@ -30,6 +30,7 @@ from working_hours import can_auto_reply
 
 logger = logging.getLogger(__name__)
 
+# Cloudflare Workers AI endpoint
 CLOUDFLARE_URL = f"https://api.cloudflare.com/client/v4/accounts/{CLOUDFLARE_ACCOUNT_ID}/ai/run/@cf/meta/llama-3-8b-instruct"
 
 async def call_cloudflare(prompt: str, max_retries: int = 2) -> str:
@@ -46,7 +47,8 @@ async def call_cloudflare(prompt: str, max_retries: int = 2) -> str:
         try:
             resp = await asyncio.to_thread(requests.post, CLOUDFLARE_URL, headers=headers, json=data, timeout=10)
             if resp.status_code == 200:
-                return resp.json()['result']['response'].strip()
+                result = resp.json()
+                return result['result']['response'].strip()
             else:
                 logger.warning(f"Cloudflare error {resp.status_code}: {resp.text}")
         except Exception as e:
@@ -76,6 +78,7 @@ JSON:
 """
 
 async def generate_reply(clinic_id: int, question: str, patient_id: int, lang: str) -> str:
+    """تولید پاسخ با استفاده از دانش قبلی یا Cloudflare AI"""
     db = SessionLocal()
     try:
         knowledge = db.query(KnowledgeItem).filter(
@@ -113,12 +116,12 @@ async def process_patient_message(update, context, clinic_id, platform, external
             db.add(EscalationLog(clinic_id=clinic_id, patient_id=patient_id, session_id=session_id,
                                  reason="medical_risk", trigger=risk_level, escalated_to="doctor"))
             db.commit()
-            await update.message.reply_text("⚠️ برای پاسخ به این سوال نیاز به بررسی پزشک دارید.")
+            await update.message.reply_text("⚠️ برای پاسخ به این سوال نیاز به بررسی پزشک دارید. لطفاً با کلینیک تماس بگیرید.")
             return
 
         # Working hours
         if not await can_auto_reply(clinic_id, session_id, db):
-            await update.message.reply_text("🌙 پیام شما ثبت شد. همکاران ما از ساعت ۸ صبح پاسخ خواهند داد.")
+            await update.message.reply_text("🌙 پیام شما ثبت شد. همکاران ما از ساعت ۸ صبح پاسخگوی شما خواهند بود.")
             db.rollback()
             return
 
