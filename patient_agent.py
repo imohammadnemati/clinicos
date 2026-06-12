@@ -57,7 +57,6 @@ async def call_groq(prompt: str, max_retries: int = 2) -> str:
         await asyncio.sleep(1)
     return "An error occurred. Please try again later."
 
-# پرامپت استخراج فکت (با replace)
 FACTS_PROMPT = """
 You are an AI assistant for a cosmetic clinic. Extract structured facts from the patient message.
 Consider the previous conversation context if provided.
@@ -82,7 +81,6 @@ Current message: {message}
 JSON:
 """
 
-# پرامپت پاسخ – بدون شروع خودکار با سلام مگر اینکه واقعاً اولین پیام باشد
 REPLY_PROMPTS = {
     'en': """You are a professional, warm, and friendly receptionist at a cosmetic clinic.
 You are already in a conversation with the patient. Do NOT start with a greeting like "Hello" unless this is the very first message of the conversation.
@@ -128,7 +126,6 @@ async def get_conversation_history(session_id: int, db, limit: int = 4) -> str:
     events = db.query(Event).filter(
         Event.session_id == session_id
     ).order_by(Event.created_at.desc()).limit(limit).all()
-    # تاریخچه به ترتیب قدیم به جدید
     history_list = []
     for ev in reversed(events):
         if ev.extracted_question:
@@ -146,7 +143,7 @@ async def update_conversation_state(session_id: int, service: str, intent: str, 
     state.updated_at = datetime.utcnow()
     db.commit()
 
-async def generate_reply(clinic_id: int, question: str, patient_id: int, lang: str, history: str, is_first: bool = False) -> str:
+async def generate_reply(clinic_id: int, question: str, patient_id: int, lang: str, history: str) -> str:
     db = SessionLocal()
     try:
         knowledge = db.query(KnowledgeItem).filter(
@@ -158,8 +155,6 @@ async def generate_reply(clinic_id: int, question: str, patient_id: int, lang: s
                 return k.answer_text
     finally:
         db.close()
-    # اگر تاریخچه خالی است (اولین پیام)، می‌توان سلام داشت
-    # اما برای سادگی، پرامپت همیشه بدون سلام اضافی است (مدل می‌فهمد)
     prompt = REPLY_PROMPTS.get(lang, REPLY_PROMPTS['en']).format(history=history, question=question)
     return await call_groq(prompt)
 
@@ -183,7 +178,6 @@ async def process_patient_message(update, context, clinic_id, platform, external
         session_id = get_or_create_session(clinic_id, patient_id)
         update_session_activity(session_id)
 
-        # ایمنی پزشکی
         is_risk, risk_level = await check_medical_risk(raw_text)
         if is_risk:
             db.add(EscalationLog(clinic_id=clinic_id, patient_id=patient_id, session_id=session_id,
@@ -217,11 +211,8 @@ async def process_patient_message(update, context, clinic_id, platform, external
         db.add(raw)
         db.flush()
 
-        # دریافت تاریخچه گفتگو (آخرین پیام‌های بیمار)
+        # دریافت تاریخچه گفتگو
         conversation_history = await get_conversation_history(session_id, db, limit=4)
-
-        # استخراج فکت (با context از وضعیت قبلی)
-        # ساده: از ConversationState برای service قبلی استفاده کنیم
         prev_state = db.query(ConversationState).filter_by(session_id=session_id).first()
         context_str = ""
         if prev_state and prev_state.current_goal:
@@ -248,7 +239,6 @@ async def process_patient_message(update, context, clinic_id, platform, external
                 "important_memory": None
             }
 
-        # اگر service تشخیص داده نشد ولی در context بود، از context استفاده کن
         if facts.get("service") in ["none", None] and prev_state and prev_state.current_goal:
             facts["service"] = prev_state.current_goal
 
@@ -279,19 +269,23 @@ async def process_patient_message(update, context, clinic_id, platform, external
             profile.moving_avg_price_sensitivity = profile.moving_avg_price_sensitivity * 0.8 + facts['price_sensitivity'] * 0.2
         profile.conversation_count = (profile.conversation_count or 0) + 1
 
+        # اصلاح مهم: بررسی نوع important_memory
         if facts.get('important_memory'):
             mem = facts['important_memory']
-            memory = PatientMemory(
-                patient_id=patient_id,
-                memory_type=mem.get('type'),
-                memory_text=mem.get('text'),
-                importance_score=mem.get('importance', 5),
-                mention_count=1,
-                confidence=0.8,
-                source='llm',
-                created_at=datetime.utcnow()
-            )
-            db.add(memory)
+            if isinstance(mem, dict):
+                memory = PatientMemory(
+                    patient_id=patient_id,
+                    memory_type=mem.get('type', 'other'),
+                    memory_text=mem.get('text', ''),
+                    importance_score=mem.get('importance', 5),
+                    mention_count=1,
+                    confidence=0.8,
+                    source='llm',
+                    created_at=datetime.utcnow()
+                )
+                db.add(memory)
+            else:
+                logger.warning(f"important_memory is not dict, ignoring: {mem}")
 
         lead_score = calculate_lead_score(
             intent=facts["intent"],
@@ -325,7 +319,7 @@ async def process_patient_message(update, context, clinic_id, platform, external
                 if facts.get("appointment_request"):
                     db.add(AppointmentRequest(clinic_id=clinic_id, lead_id=lead.id, suggested_date=datetime.utcnow()))
 
-        # تاریخچه کامل‌تر برای پاسخ (شامل سوالات قبلی)
+        # تولید پاسخ
         answer = await generate_reply(clinic_id, facts.get("extracted_question") or raw_text, patient_id, lang, conversation_history)
 
         ans_hash = hashlib.sha256(answer.encode()).hexdigest()
@@ -343,7 +337,7 @@ async def process_patient_message(update, context, clinic_id, platform, external
         await update.message.reply_text(answer)
 
     except Exception as e:
-        logger.error(f"Error: {e}", exc_info=True)
+        logger.error(f"Error in process_patient_message: {e}", exc_info=True)
         db.rollback()
         await update.message.reply_text("An error occurred. Please try again later.")
     finally:
