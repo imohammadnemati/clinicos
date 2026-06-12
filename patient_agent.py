@@ -30,9 +30,8 @@ from working_hours import can_auto_reply
 
 logger = logging.getLogger(__name__)
 
-# Groq API - استفاده از مدل جدید (غیر منقضی)
 GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
-GROQ_MODEL = "llama-3.3-70b-versatile"  # مدل جدید و پایدار
+GROQ_MODEL = "llama-3.3-70b-versatile"
 
 async def call_groq(prompt: str, max_retries: int = 2) -> str:
     headers = {
@@ -57,7 +56,6 @@ async def call_groq(prompt: str, max_retries: int = 2) -> str:
         await asyncio.sleep(1)
     return "An error occurred. Please try again later."
 
-# پرامپت استخراج فکت (انگلیسی برای دقت بالا)
 FACTS_PROMPT = """
 You are an AI assistant for a cosmetic clinic. Extract structured facts from the patient message.
 Return ONLY valid JSON, no extra text, no explanation.
@@ -75,11 +73,11 @@ Return ONLY valid JSON, no extra text, no explanation.
   "price_sensitivity": 0-10 or null,
   "important_memory": null
 }
+Important: Only set "requires_human": true if the patient explicitly asks to speak to a human, complains, or mentions a serious medical emergency. For normal questions (price, booking, general info), set requires_human: false.
 Message: {message}
 JSON:
 """
 
-# پرامپت‌های پاسخ به سه زبان
 REPLY_PROMPTS = {
     'en': """You are a professional, warm, and friendly receptionist at a cosmetic clinic.
 You speak to clients in English, naturally and conversationally, as if you are a real human.
@@ -106,7 +104,6 @@ Your reply:""",
 async def generate_reply(clinic_id: int, question: str, patient_id: int, lang: str) -> str:
     db = SessionLocal()
     try:
-        # جستجو در دانش قبلی
         knowledge = db.query(KnowledgeItem).filter(
             KnowledgeItem.clinic_id == clinic_id,
             KnowledgeItem.effective_date <= datetime.utcnow()
@@ -124,7 +121,6 @@ async def process_patient_message(update, context, clinic_id, platform, external
     if db is None:
         db = SessionLocal()
     try:
-        # پاسخ به دستور /start
         if raw_text.strip().startswith('/start'):
             await update.message.reply_text("Hello! 🌷 Welcome to our clinic. How can I assist you today?")
             return
@@ -140,7 +136,6 @@ async def process_patient_message(update, context, clinic_id, platform, external
         session_id = get_or_create_session(clinic_id, patient_id)
         update_session_activity(session_id)
 
-        # ایمنی پزشکی (با AI – از Groq استفاده می‌کند)
         is_risk, risk_level = await check_medical_risk(raw_text)
         if is_risk:
             db.add(EscalationLog(clinic_id=clinic_id, patient_id=patient_id, session_id=session_id,
@@ -154,7 +149,6 @@ async def process_patient_message(update, context, clinic_id, platform, external
             await update.message.reply_text(risk_msg)
             return
 
-        # ساعات کاری
         if not await can_auto_reply(clinic_id, session_id, db):
             out_msg = {
                 'fa': "🌙 پیام شما ثبت شد. همکاران ما از ساعت ۸ صبح پاسخگو خواهند بود.",
@@ -165,7 +159,6 @@ async def process_patient_message(update, context, clinic_id, platform, external
             db.rollback()
             return
 
-        # ذخیره پیام خام
         raw = RawMessage(
             clinic_id=clinic_id, patient_id=patient_id, session_id=session_id,
             platform=platform, external_user_id=external_user_id,
@@ -175,7 +168,6 @@ async def process_patient_message(update, context, clinic_id, platform, external
         db.add(raw)
         db.flush()
 
-        # استخراج فکت با Groq
         prompt_text = FACTS_PROMPT.replace("{message}", raw_text)
         facts_json = await call_groq(prompt_text)
         facts_json = re.sub(r'```json\n?|```', '', facts_json.strip())
@@ -197,18 +189,22 @@ async def process_patient_message(update, context, clinic_id, platform, external
                 "important_memory": None
             }
 
+        # ========== اصلاح: جلوگیری از human handoff اشتباه ==========
         if facts.get("requires_human"):
-            db.query(SessionModel).filter_by(id=session_id).update({"requires_human": True})
-            db.commit()
-            human_msg = {
-                'fa': "درخواست شما به منشی منتقل شد. لطفاً صبر کنید.",
-                'en': "Your request has been forwarded to our secretary. Please wait.",
-                'ar': "تم تحويل طلبك إلى السكرتير. يرجى الانتظار."
-            }.get(lang, "Your request has been forwarded to our secretary. Please wait.")
-            await update.message.reply_text(human_msg)
-            return
+            # اگر سوال ساده و عادی است، نیاز به انسان ندارد
+            if facts.get("intent") == "inquiry" and facts.get("service") == "none" and facts.get("objection_category") == "none":
+                facts["requires_human"] = False
+            else:
+                db.query(SessionModel).filter_by(id=session_id).update({"requires_human": True})
+                db.commit()
+                human_msg = {
+                    'fa': "درخواست شما به منشی منتقل شد. لطفاً صبر کنید.",
+                    'en': "Your request has been forwarded to our secretary. Please wait.",
+                    'ar': "تم تحويل طلبك إلى السكرتير. يرجى الانتظار."
+                }.get(lang, "Your request has been forwarded to our secretary. Please wait.")
+                await update.message.reply_text(human_msg)
+                return
 
-        # به‌روزرسانی پروفایل بیمار
         profile = db.query(PatientProfile).filter_by(patient_id=patient_id).first()
         if not profile:
             profile = PatientProfile(patient_id=patient_id)
@@ -236,7 +232,6 @@ async def process_patient_message(update, context, clinic_id, platform, external
             )
             db.add(memory)
 
-        # امتیاز لید
         lead_score = calculate_lead_score(
             intent=facts["intent"],
             service_interest=(facts["service"] != "none"),
@@ -246,7 +241,6 @@ async def process_patient_message(update, context, clinic_id, platform, external
             conversation_depth=profile.conversation_count
         )
 
-        # ذخیره رویداد
         event = Event(
             clinic_id=clinic_id, raw_message_id=raw.id, session_id=session_id, patient_id=patient_id,
             intent_type=facts["intent"], objection_category=facts["objection_category"],
@@ -256,7 +250,6 @@ async def process_patient_message(update, context, clinic_id, platform, external
         db.add(event)
         db.flush()
 
-        # ایجاد لید در صورت امتیاز بالا
         if lead_score >= LEAD_THRESHOLD:
             existing_lead = db.query(Lead).filter_by(patient_id=patient_id, pipeline_stage='new').first()
             if not existing_lead:
@@ -271,10 +264,8 @@ async def process_patient_message(update, context, clinic_id, platform, external
                 if facts.get("appointment_request"):
                     db.add(AppointmentRequest(clinic_id=clinic_id, lead_id=lead.id, suggested_date=datetime.utcnow()))
 
-        # تولید پاسخ نهایی
         answer = await generate_reply(clinic_id, facts.get("extracted_question") or raw_text, patient_id, lang)
 
-        # ثبت الگوی پاسخ
         ans_hash = hashlib.sha256(answer.encode()).hexdigest()
         pattern = db.query(OutcomePattern).filter_by(clinic_id=clinic_id, answer_pattern_hash=ans_hash).first()
         if pattern:
@@ -290,7 +281,7 @@ async def process_patient_message(update, context, clinic_id, platform, external
         await update.message.reply_text(answer)
 
     except Exception as e:
-        logger.error(f"خطا در پردازش پیام: {e}", exc_info=True)
+        logger.error(f"Error in process_patient_message: {e}", exc_info=True)
         db.rollback()
         await update.message.reply_text("An error occurred. Please try again later.")
     finally:
