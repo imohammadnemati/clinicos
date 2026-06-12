@@ -57,7 +57,7 @@ async def call_groq(prompt: str, max_retries: int = 2) -> str:
         await asyncio.sleep(1)
     return "An error occurred. Please try again later."
 
-# پرامپت استخراج فکت با پشتیبانی از context
+# پرامپت استخراج فکت (بدون آکولاد برای format - با جایگزینی دستی)
 FACTS_PROMPT = """
 You are an AI assistant for a cosmetic clinic. Extract structured facts from the patient message.
 Consider the previous conversation context if provided.
@@ -77,8 +77,7 @@ Return ONLY valid JSON, no extra text, no explanation.
   "important_memory": null
 }
 Important: Only set "requires_human": true if the patient explicitly asks to speak to a human, complains, or mentions a serious medical emergency.
-Context from previous conversation:
-{context}
+Context from previous conversation: {context}
 Current message: {message}
 JSON:
 """
@@ -114,7 +113,6 @@ Your reply:""",
 }
 
 async def get_conversation_context(session_id: int, db) -> str:
-    """دریافت آخرین service و intent از ConversationState"""
     state = db.query(ConversationState).filter_by(session_id=session_id).first()
     if not state:
         return ""
@@ -126,7 +124,6 @@ async def get_conversation_context(session_id: int, db) -> str:
     return context
 
 async def update_conversation_state(session_id: int, service: str, intent: str, db):
-    """به‌روزرسانی وضعیت مکالمه با خدمت و هدف فعلی"""
     state = db.query(ConversationState).filter_by(session_id=session_id).first()
     if not state:
         state = ConversationState(session_id=session_id)
@@ -140,7 +137,6 @@ async def update_conversation_state(session_id: int, service: str, intent: str, 
 async def generate_reply(clinic_id: int, question: str, patient_id: int, lang: str, history: str = "") -> str:
     db = SessionLocal()
     try:
-        # جستجو در دانش قبلی
         knowledge = db.query(KnowledgeItem).filter(
             KnowledgeItem.clinic_id == clinic_id,
             KnowledgeItem.effective_date <= datetime.utcnow()
@@ -173,7 +169,6 @@ async def process_patient_message(update, context, clinic_id, platform, external
         session_id = get_or_create_session(clinic_id, patient_id)
         update_session_activity(session_id)
 
-        # ایمنی پزشکی
         is_risk, risk_level = await check_medical_risk(raw_text)
         if is_risk:
             db.add(EscalationLog(clinic_id=clinic_id, patient_id=patient_id, session_id=session_id,
@@ -197,7 +192,6 @@ async def process_patient_message(update, context, clinic_id, platform, external
             db.rollback()
             return
 
-        # ذخیره پیام خام
         raw = RawMessage(
             clinic_id=clinic_id, patient_id=patient_id, session_id=session_id,
             platform=platform, external_user_id=external_user_id,
@@ -207,11 +201,10 @@ async def process_patient_message(update, context, clinic_id, platform, external
         db.add(raw)
         db.flush()
 
-        # دریافت context مکالمه قبلی
         conversation_context = await get_conversation_context(session_id, db)
 
-        # استخراج فکت با در نظر گرفتن context
-        prompt_text = FACTS_PROMPT.format(context=conversation_context, message=raw_text)
+        # اصلاح کلیدی: استفاده از replace به جای format
+        prompt_text = FACTS_PROMPT.replace("{context}", conversation_context).replace("{message}", raw_text)
         facts_json = await call_groq(prompt_text)
         facts_json = re.sub(r'```json\n?|```', '', facts_json.strip())
         try:
@@ -232,15 +225,13 @@ async def process_patient_message(update, context, clinic_id, platform, external
                 "important_memory": None
             }
 
-        # اصلاح: اگر service تشخیص داده نشد (none) ولی context قبلی service داشت، از context استفاده کن
+        # Fallback برای service با context
         if facts.get("service") in ["none", None] and conversation_context:
-            # ساده: اگر context شامل "interested in: botox" بود، service را botox بگذار
             if "botox" in conversation_context.lower():
                 facts["service"] = "botox"
             elif "filler" in conversation_context.lower():
                 facts["service"] = "filler"
 
-        # به‌روزرسانی وضعیت مکالمه
         await update_conversation_state(session_id, facts.get("service"), facts.get("intent"), db)
 
         if facts.get("requires_human"):
@@ -254,7 +245,6 @@ async def process_patient_message(update, context, clinic_id, platform, external
             await update.message.reply_text(human_msg)
             return
 
-        # به‌روزرسانی پروفایل
         profile = db.query(PatientProfile).filter_by(patient_id=patient_id).first()
         if not profile:
             profile = PatientProfile(patient_id=patient_id)
@@ -314,7 +304,6 @@ async def process_patient_message(update, context, clinic_id, platform, external
                 if facts.get("appointment_request"):
                     db.add(AppointmentRequest(clinic_id=clinic_id, lead_id=lead.id, suggested_date=datetime.utcnow()))
 
-        # تاریخچه گفتگو برای پاسخ (آخرین ۳ رویداد)
         recent_events = db.query(Event).filter(
             Event.session_id == session_id
         ).order_by(Event.created_at.desc()).limit(3).all()
