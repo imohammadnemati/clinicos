@@ -19,7 +19,8 @@ from models import (
     Patient,
     PatientProfile,
     PatientMemory,
-    EscalationLog
+    EscalationLog,
+    ConversationState
 )
 from identity_resolution import get_or_create_patient
 from session_manager import get_or_create_session, update_session_activity
@@ -56,8 +57,10 @@ async def call_groq(prompt: str, max_retries: int = 2) -> str:
         await asyncio.sleep(1)
     return "An error occurred. Please try again later."
 
+# پرامپت استخراج فکت با پشتیبانی از context
 FACTS_PROMPT = """
 You are an AI assistant for a cosmetic clinic. Extract structured facts from the patient message.
+Consider the previous conversation context if provided.
 Return ONLY valid JSON, no extra text, no explanation.
 {
   "intent": "inquiry|booking_request|price_check",
@@ -73,8 +76,10 @@ Return ONLY valid JSON, no extra text, no explanation.
   "price_sensitivity": 0-10 or null,
   "important_memory": null
 }
-Important: Only set "requires_human": true if the patient explicitly asks to speak to a human, complains, or mentions a serious medical emergency. For normal questions (price, booking, general info), set requires_human: false.
-Message: {message}
+Important: Only set "requires_human": true if the patient explicitly asks to speak to a human, complains, or mentions a serious medical emergency.
+Context from previous conversation:
+{context}
+Current message: {message}
 JSON:
 """
 
@@ -82,28 +87,60 @@ REPLY_PROMPTS = {
     'en': """You are a professional, warm, and friendly receptionist at a cosmetic clinic.
 You speak to clients in English, naturally and conversationally, as if you are a real human.
 Never say "I am a robot" or "artificial intelligence". Keep responses short, polite, and helpful.
+Use the conversation history to provide coherent answers.
 If the user asks about prices, say: "The price depends on the area and number of units. Could you please tell me which area you're interested in?"
 If the user asks medical questions that require a doctor, say: "For an accurate answer, you need to consult our doctor. Would you like to book a free consultation?"
 If the user greets you (hello, hi, good morning), respond warmly and ask how you can help.
 Only output the reply, nothing else.
 
-Patient question: {question}
+Conversation history: {history}
+Current question: {question}
 Your reply:""",
 
-    'fa': """تو یک منشی حرفه‌ای، گرم و صمیمی کلینیک زیبایی هستی. با مشتری‌ها به فارسی و کاملاً محاوره‌ای و طبیعی صحبت کن، طوری که انگار یک انسان واقعی است. هرگز نگو "ربات هستم" یا "هوش مصنوعی". از کلمات ساده و روان استفاده کن، کوتاه و مفید. اگر سوال درباره قیمت است، بگو: "قیمت بستگی به ناحیه و شرایط داره، لطفاً ناحیه مد نظرتون رو بفرمایید." اگر سوال پزشکی است که نیاز به پزشک دارد، بگو: "برای پاسخ دقیق نیاز به معاینه توسط پزشک داریم. می‌تونید وقت مشاوره بگیرید؟" اگر مشتری سلام کرد، گرم و دوستانه پاسخ بده. لطفاً فقط پاسخ را بنویس، بدون توضیح اضافه.
+    'fa': """تو یک منشی حرفه‌ای، گرم و صمیمی کلینیک زیبایی هستی. با مشتری‌ها به فارسی و کاملاً محاوره‌ای و طبیعی صحبت کن، طوری که انگار یک انسان واقعی است. هرگز نگو "ربات هستم" یا "هوش مصنوعی". از کلمات ساده و روان استفاده کن، کوتاه و مفید.
+از تاریخچه گفتگو برای پاسخ‌های پیوسته استفاده کن. اگر درباره قیمت می‌پرسد بگو: "قیمت بستگی به ناحیه و شرایط داره، لطفاً ناحیه مد نظرتون رو بفرمایید." اگر سوال پزشکی است که نیاز به پزشک دارد بگو: "برای پاسخ دقیق نیاز به معاینه توسط پزشک داریم. می‌تونید وقت مشاوره بگیرید؟" اگر مشتری سلام کرد، گرم و دوستانه پاسخ بده.
+لطفاً فقط پاسخ را بنویس، بدون توضیح اضافه.
 
+تاریخچه گفتگو: {history}
 سوال بیمار: {question}
 پاسخ تو:""",
 
-    'ar': """أنت موظف استقبال محترم و ودود في عيادة تجميل. تتحدث مع العملاء بالعربية، بشكل طبيعي ومحادث، كما لو كنت إنساناً حقيقياً. لا تقل أبداً "أنا روبوت" أو "ذكاء اصطناعي". استخدم كلمات بسيطة وسلسة، قصيرة ومفيدة. إذا سأل المستخدم عن الأسعار، قل: "السعر يعتمد على المنطقة وعدد الوحدات. هل تخبرني بالمنطقة التي تهتم بها؟" إذا سأل أسئلة طبية تحتاج إلى طبيب، قل: "للحصول على إجابة دقيقة، تحتاج إلى استشارة طبيبنا. هل ترغب في حجز استشارة مجانية؟" إذا رحب بك المستخدم (مرحباً، أهلين)، رد بحرارة واسأل كيف يمكنك المساعدة. فقط أخرج الرد، لا شيء إضافي.
+    'ar': """أنت موظف استقبال محترم و ودود في عيادة تجميل. تتحدث مع العملاء بالعربية، بشكل طبيعي ومحادث، كما لو كنت إنساناً حقيقياً. لا تقل أبداً "أنا روبوت" أو "ذكاء اصطناعي". استخدم كلمات بسيطة وسلسة، قصيرة ومفيدة.
+استخدم تاريخ المحادثة للإجابة المستمرة. إذا سأل عن الأسعار قل: "السعر يعتمد على المنطقة وعدد الوحدات. هل تخبرني بالمنطقة التي تهتم بها؟" إذا سأل أسئلة طبية تحتاج إلى طبيب قل: "للحصول على إجابة دقيقة، تحتاج إلى استشارة طبيبنا. هل ترغب في حجز استشارة مجانية؟" إذا رحب بك المستخدم (مرحباً، أهلين)، رد بحرارة واسأل كيف يمكنك المساعدة. فقط أخرج الرد، لا شيء إضافي.
 
+تاريخ المحادثة: {history}
 سؤال المريض: {question}
 ردك:"""
 }
 
-async def generate_reply(clinic_id: int, question: str, patient_id: int, lang: str) -> str:
+async def get_conversation_context(session_id: int, db) -> str:
+    """دریافت آخرین service و intent از ConversationState"""
+    state = db.query(ConversationState).filter_by(session_id=session_id).first()
+    if not state:
+        return ""
+    context = ""
+    if state.current_goal:
+        context += f"User is interested in: {state.current_goal}. "
+    if state.missing_information:
+        context += f"Missing info: {state.missing_information}. "
+    return context
+
+async def update_conversation_state(session_id: int, service: str, intent: str, db):
+    """به‌روزرسانی وضعیت مکالمه با خدمت و هدف فعلی"""
+    state = db.query(ConversationState).filter_by(session_id=session_id).first()
+    if not state:
+        state = ConversationState(session_id=session_id)
+        db.add(state)
+    if service and service != "none":
+        state.current_goal = service
+    state.conversation_stage = intent
+    state.updated_at = datetime.utcnow()
+    db.commit()
+
+async def generate_reply(clinic_id: int, question: str, patient_id: int, lang: str, history: str = "") -> str:
     db = SessionLocal()
     try:
+        # جستجو در دانش قبلی
         knowledge = db.query(KnowledgeItem).filter(
             KnowledgeItem.clinic_id == clinic_id,
             KnowledgeItem.effective_date <= datetime.utcnow()
@@ -113,7 +150,7 @@ async def generate_reply(clinic_id: int, question: str, patient_id: int, lang: s
                 return k.answer_text
     finally:
         db.close()
-    prompt = REPLY_PROMPTS.get(lang, REPLY_PROMPTS['en']).format(question=question)
+    prompt = REPLY_PROMPTS.get(lang, REPLY_PROMPTS['en']).format(history=history, question=question)
     return await call_groq(prompt)
 
 async def process_patient_message(update, context, clinic_id, platform, external_user_id, raw_text,
@@ -136,6 +173,7 @@ async def process_patient_message(update, context, clinic_id, platform, external
         session_id = get_or_create_session(clinic_id, patient_id)
         update_session_activity(session_id)
 
+        # ایمنی پزشکی
         is_risk, risk_level = await check_medical_risk(raw_text)
         if is_risk:
             db.add(EscalationLog(clinic_id=clinic_id, patient_id=patient_id, session_id=session_id,
@@ -159,6 +197,7 @@ async def process_patient_message(update, context, clinic_id, platform, external
             db.rollback()
             return
 
+        # ذخیره پیام خام
         raw = RawMessage(
             clinic_id=clinic_id, patient_id=patient_id, session_id=session_id,
             platform=platform, external_user_id=external_user_id,
@@ -168,7 +207,11 @@ async def process_patient_message(update, context, clinic_id, platform, external
         db.add(raw)
         db.flush()
 
-        prompt_text = FACTS_PROMPT.replace("{message}", raw_text)
+        # دریافت context مکالمه قبلی
+        conversation_context = await get_conversation_context(session_id, db)
+
+        # استخراج فکت با در نظر گرفتن context
+        prompt_text = FACTS_PROMPT.format(context=conversation_context, message=raw_text)
         facts_json = await call_groq(prompt_text)
         facts_json = re.sub(r'```json\n?|```', '', facts_json.strip())
         try:
@@ -189,22 +232,29 @@ async def process_patient_message(update, context, clinic_id, platform, external
                 "important_memory": None
             }
 
-        # ========== اصلاح: جلوگیری از human handoff اشتباه ==========
-        if facts.get("requires_human"):
-            # اگر سوال ساده و عادی است، نیاز به انسان ندارد
-            if facts.get("intent") == "inquiry" and facts.get("service") == "none" and facts.get("objection_category") == "none":
-                facts["requires_human"] = False
-            else:
-                db.query(SessionModel).filter_by(id=session_id).update({"requires_human": True})
-                db.commit()
-                human_msg = {
-                    'fa': "درخواست شما به منشی منتقل شد. لطفاً صبر کنید.",
-                    'en': "Your request has been forwarded to our secretary. Please wait.",
-                    'ar': "تم تحويل طلبك إلى السكرتير. يرجى الانتظار."
-                }.get(lang, "Your request has been forwarded to our secretary. Please wait.")
-                await update.message.reply_text(human_msg)
-                return
+        # اصلاح: اگر service تشخیص داده نشد (none) ولی context قبلی service داشت، از context استفاده کن
+        if facts.get("service") in ["none", None] and conversation_context:
+            # ساده: اگر context شامل "interested in: botox" بود، service را botox بگذار
+            if "botox" in conversation_context.lower():
+                facts["service"] = "botox"
+            elif "filler" in conversation_context.lower():
+                facts["service"] = "filler"
 
+        # به‌روزرسانی وضعیت مکالمه
+        await update_conversation_state(session_id, facts.get("service"), facts.get("intent"), db)
+
+        if facts.get("requires_human"):
+            db.query(SessionModel).filter_by(id=session_id).update({"requires_human": True})
+            db.commit()
+            human_msg = {
+                'fa': "درخواست شما به منشی منتقل شد. لطفاً صبر کنید.",
+                'en': "Your request has been forwarded to our secretary. Please wait.",
+                'ar': "تم تحويل طلبك إلى السكرتير. يرجى الانتظار."
+            }.get(lang, "Your request has been forwarded to our secretary. Please wait.")
+            await update.message.reply_text(human_msg)
+            return
+
+        # به‌روزرسانی پروفایل
         profile = db.query(PatientProfile).filter_by(patient_id=patient_id).first()
         if not profile:
             profile = PatientProfile(patient_id=patient_id)
@@ -264,7 +314,13 @@ async def process_patient_message(update, context, clinic_id, platform, external
                 if facts.get("appointment_request"):
                     db.add(AppointmentRequest(clinic_id=clinic_id, lead_id=lead.id, suggested_date=datetime.utcnow()))
 
-        answer = await generate_reply(clinic_id, facts.get("extracted_question") or raw_text, patient_id, lang)
+        # تاریخچه گفتگو برای پاسخ (آخرین ۳ رویداد)
+        recent_events = db.query(Event).filter(
+            Event.session_id == session_id
+        ).order_by(Event.created_at.desc()).limit(3).all()
+        history_text = "\n".join([f"User: {e.extracted_question}" for e in reversed(recent_events) if e.extracted_question])
+
+        answer = await generate_reply(clinic_id, facts.get("extracted_question") or raw_text, patient_id, lang, history_text)
 
         ans_hash = hashlib.sha256(answer.encode()).hexdigest()
         pattern = db.query(OutcomePattern).filter_by(clinic_id=clinic_id, answer_pattern_hash=ans_hash).first()
