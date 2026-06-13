@@ -1,10 +1,7 @@
-"""
-ClinicOS Telegram Bot – Redesigned UX
-Fully compatible with existing database models (uses PatientAlias for telegram IDs).
-Uses centralized Gemini client with auto model discovery and fallback.
-"""
-
 import logging
+import time
+import asyncio
+import requests
 from datetime import datetime, timedelta
 from typing import Optional
 
@@ -15,12 +12,14 @@ from telegram.ext import (
 )
 from config import BOT_TOKEN, OWNER_TELEGRAM_ID
 from database import SessionLocal, init_db
-from models import Clinic, Staff, Patient, PatientAlias, Lead, Appointment, AppointmentRequest, PipelineHistory, EscalationLog
+from models import (
+    Clinic, Staff, Patient, PatientAlias, Lead, Appointment,
+    AppointmentRequest, PipelineHistory, EscalationLog, RawMessage
+)
 from patient_agent import process_patient_message
 from appointment_engine import create_appointment_request
 from kpi_engine import get_kpi_summary
 from gemini_client import get_gemini_client
-import requests
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -30,17 +29,14 @@ LANG_SELECT = 1
 APPT_SERVICE, APPT_DATE, APPT_TIME, APPT_CONFIRM = range(10, 14)
 STAFF_ID, STAFF_CONFIRM = range(20, 22)
 
-# ========== Helper Functions (using PatientAlias) ==========
-
+# ========== Helper Functions ==========
 def get_patient_by_telegram_id(telegram_id: int, db) -> Optional[Patient]:
-    """Find patient via PatientAlias."""
     alias = db.query(PatientAlias).filter_by(platform='telegram', external_user_id=str(telegram_id)).first()
     if alias:
         return db.query(Patient).filter_by(id=alias.patient_id).first()
     return None
 
 def get_or_create_patient_by_telegram(telegram_id: int, name: str, db) -> Patient:
-    """Create a new patient if not exists, using PatientAlias."""
     patient = get_patient_by_telegram_id(telegram_id, db)
     if patient:
         return patient
@@ -116,7 +112,6 @@ def format_dashboard(role: str, clinic_id: int, db, user_id: int) -> str:
     elif role == 'secretary':
         today = datetime.utcnow().date()
         start = datetime(today.year, today.month, today.day)
-        from models import RawMessage
         messages = db.query(RawMessage).filter(RawMessage.created_at >= start).count()
         leads = db.query(Lead).filter(Lead.created_at >= start).count()
         appts = db.query(Appointment).filter(Appointment.appointment_date >= start).count()
@@ -138,7 +133,6 @@ def format_dashboard(role: str, clinic_id: int, db, user_id: int) -> str:
         return f"🏠 *Home*\n\nسلام {name} 🌷\nبه کلینیک خوش آمدید."
 
 # ========== Conversation Handlers ==========
-
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     db = SessionLocal()
@@ -523,7 +517,6 @@ async def show_secretary_stats(update: Update, context: ContextTypes.DEFAULT_TYP
     try:
         today = datetime.utcnow().date()
         start = datetime(today.year, today.month, today.day)
-        from models import RawMessage
         messages = db.query(RawMessage).filter(RawMessage.created_at >= start).count()
         leads = db.query(Lead).filter(Lead.created_at >= start).count()
         appointments = db.query(Appointment).filter(Appointment.appointment_date >= start).count()
@@ -573,10 +566,9 @@ async def show_patient_appointments(update: Update, context: ContextTypes.DEFAUL
 
 # ========== Gemini Test Command ==========
 async def test_gemini(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """دستور تست اتصال به Gemini (فقط در صورت نیاز)"""
     try:
         client = get_gemini_client()
-        result = await client.test_connection_async()  # نیاز به اضافه کردن این متد در gemini_client
+        result = await client.test_connection_async()
         if result:
             await update.message.reply_text("✅ تست Gemini: موفق\nمدل فعال: " + client.working_model)
         else:
@@ -594,28 +586,35 @@ async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 def main():
     init_db()
 
-    # حذف وب‌هوک قدیمی
-    try:
-        requests.get(f"https://api.telegram.org/bot{BOT_TOKEN}/deleteWebhook")
-        logger.info("Webhook deleted.")
-    except Exception as e:
-        logger.warning(f"Could not delete webhook: {e}")
+    # Delete webhook to avoid conflict
+    for attempt in range(5):
+        try:
+            resp = requests.get(f"https://api.telegram.org/bot{BOT_TOKEN}/deleteWebhook")
+            if resp.status_code == 200:
+                logger.info(f"Webhook deleted (attempt {attempt+1})")
+                break
+            else:
+                logger.warning(f"Delete webhook attempt {attempt+1} failed: {resp.text}")
+        except Exception as e:
+            logger.warning(f"Delete webhook attempt {attempt+1} error: {e}")
+        time.sleep(2)
+    else:
+        logger.error("Could not delete webhook after 5 attempts")
 
     app = Application.builder().token(BOT_TOKEN).build()
 
-    # callback برای راه‌اندازی scheduler بعد از شروع event loop (بدون تست Gemini همزمان)
     async def startup(application):
+        await asyncio.sleep(3)  # extra delay to let webhook fully close
         from scheduler import init_scheduler, get_scheduler
         init_scheduler()
         scheduler = get_scheduler()
         if not scheduler.running:
             scheduler.start()
             logger.info("⏰ Scheduler started.")
-        # تست Gemini را حذف کردیم تا از 429 جلوگیری شود – کاربر می‌تواند دستی /test_gemini بزند
 
     app.post_init = startup
 
-    # ثبت هندلرها
+    # Register handlers
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("test_gemini", test_gemini))
     app.add_handler(CallbackQueryHandler(language_callback, pattern='^lang_'))
