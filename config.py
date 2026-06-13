@@ -1,13 +1,10 @@
 import os
-from dotenv import load_dotenv
 
-load_dotenv()
-
-# Telegram
+# ---------- Telegram ----------
 BOT_TOKEN = os.getenv("BOT_TOKEN", "")
 OWNER_TELEGRAM_ID = int(os.getenv("OWNER_TELEGRAM_ID", "0"))
 
-# Database
+# ---------- Database ----------
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///clinic_brain.db")
 DATABASE_POOL_SIZE = int(os.getenv("DATABASE_POOL_SIZE", "10"))
 DATABASE_MAX_OVERFLOW = int(os.getenv("DATABASE_MAX_OVERFLOW", "20"))
@@ -15,45 +12,44 @@ DATABASE_POOL_TIMEOUT = int(os.getenv("DATABASE_POOL_TIMEOUT", "30"))
 DATABASE_POOL_RECYCLE = int(os.getenv("DATABASE_POOL_RECYCLE", "3600"))
 DEBUG_MODE = os.getenv("DEBUG_MODE", "False").lower() == "true"
 
-# Google Gemini API
+# ---------- Google Gemini API ----------
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+# مدل پیش‌فرض؛ در صورت عدم دسترسی، fallback خودکار انجام می‌شود
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 
-# (پشتیبانی از Groq و Cloudflare حذف شد)
-# GROQ_API_KEY = ...
-# CLOUDFLARE_...
-
-# Lead & Session
+# ---------- Lead & Session ----------
 LEAD_THRESHOLD = float(os.getenv("LEAD_THRESHOLD", "7.0"))
 SESSION_HOURS = int(os.getenv("SESSION_HOURS", "24"))
 ACTIVE_SESSION_GRACE_MINUTES = int(os.getenv("ACTIVE_SESSION_GRACE_MINUTES", "90"))
 
-# Memory
+# ---------- Memory ----------
 MAX_CONTEXT_MEMORIES = int(os.getenv("MAX_CONTEXT_MEMORIES", "3"))
 MAX_CONTEXT_EVENTS = int(os.getenv("MAX_CONTEXT_EVENTS", "5"))
 MAX_SUMMARY_CHARS = int(os.getenv("MAX_SUMMARY_CHARS", "500"))
 
-# Follow-up
+# ---------- Follow‑up ----------
 DEFAULT_FOLLOWUP_DAYS = int(os.getenv("DEFAULT_FOLLOWUP_DAYS", "3"))
 SECOND_FOLLOWUP_DAYS = int(os.getenv("SECOND_FOLLOWUP_DAYS", "7"))
 THIRD_FOLLOWUP_DAYS = int(os.getenv("THIRD_FOLLOWUP_DAYS", "14"))
 MAX_RECOVERY_ATTEMPTS = int(os.getenv("MAX_RECOVERY_ATTEMPTS", "3"))
 
-# Appointment
+# ---------- Appointment ----------
 DEFAULT_REMINDER_HOURS = int(os.getenv("DEFAULT_REMINDER_HOURS", "24"))
 
-# Working hours
+# ---------- Working hours ----------
 WORKING_HOURS_START = int(os.getenv("WORKING_HOURS_START", "8"))
 WORKING_HOURS_END = int(os.getenv("WORKING_HOURS_END", "22"))
 ACTIVE_TIMEOUT_MINUTES = int(os.getenv("ACTIVE_TIMEOUT_MINUTES", "30"))
 
-# Safety & Modes
+# ---------- Safety & Modes ----------
 MEDICAL_SAFETY_MODE = os.getenv("MEDICAL_SAFETY_MODE", "True").lower() == "true"
 READONLY_MODE = os.getenv("READONLY_MODE", "False").lower() == "true"
 
-# Logging
+# ---------- Logging ----------
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 LOG_FILE_PATH = os.getenv("LOG_FILE_PATH", "logs/clinic_brain.log")
 
+# ---------- Validation ----------
 def validate_config():
     errors = []
     if not BOT_TOKEN:
@@ -74,6 +70,7 @@ def get_config_summary():
         "owner_telegram_id": OWNER_TELEGRAM_ID,
         "database_url": DATABASE_URL.split("://")[0],
         "gemini_configured": bool(GEMINI_API_KEY),
+        "gemini_model": GEMINI_MODEL,
         "lead_threshold": LEAD_THRESHOLD,
         "session_hours": SESSION_HOURS,
         "max_recovery_attempts": MAX_RECOVERY_ATTEMPTS,
