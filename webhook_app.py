@@ -9,13 +9,17 @@ from database import SessionLocal, init_db
 from models import Clinic
 from patient_agent import process_patient_message
 
+# تنظیم لاگینگ
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
+
+# راه‌اندازی دیتابیس (جداول ساخته می‌شوند)
 init_db()
 
 def get_or_create_default_clinic():
+    """دریافت کلینیک پیش‌فرض (برای MVP تک کلینیکی)"""
     db = SessionLocal()
     try:
         clinic = db.query(Clinic).first()
@@ -28,13 +32,18 @@ def get_or_create_default_clinic():
     finally:
         db.close()
 
+# ========== کلاس‌های شبیه‌سازی برای تطابق با patient_agent ==========
 class DummyMessage:
     def __init__(self, text, chat_id):
         self.text = text
         self.chat_id = chat_id
     async def reply_text(self, reply_text):
+        """ارسال پاسخ به تلگرام (async)"""
         url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-        await asyncio.to_thread(requests.post, url, json={"chat_id": self.chat_id, "text": reply_text}, timeout=5)
+        try:
+            await asyncio.to_thread(requests.post, url, json={"chat_id": self.chat_id, "text": reply_text}, timeout=5)
+        except Exception as e:
+            logger.error(f"خطا در ارسال پاسخ: {e}")
 
 class DummyUpdate:
     def __init__(self, user_id, username, first_name, message_text, chat_id):
@@ -47,21 +56,32 @@ class DummyUpdate:
         self.message = DummyMessage(message_text, chat_id)
         self.effective_message = self.message
 
+# ========== Webhook ==========
 @app.route('/webhook', methods=['POST'])
 def webhook():
+    """دریافت پیام از تلگرام و ارسال به patient_agent"""
     data = request.get_json()
     if not data or 'message' not in data:
         return jsonify({"status": "no_message"}), 200
+
     msg = data['message']
     text = msg.get('text', '')
     from_user = msg['from']
     chat_id = msg['chat']['id']
+
+    # دریافت کلینیک پیش‌فرض
     clinic_id = get_or_create_default_clinic()
+
+    # آماده‌سازی DummyUpdate
     user_id = from_user.get('id')
     username = from_user.get('username')
     first_name = from_user.get('first_name', '')
     dummy_update = DummyUpdate(user_id, username, first_name, text, chat_id)
+
+    # ایجاد سشن دیتابیس برای هر درخواست
     db_session = SessionLocal()
+
+    # اجرای patient_agent در یک ترد جداگانه (async)
     def process():
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
@@ -80,19 +100,25 @@ def webhook():
             ))
         except Exception as e:
             logger.error(f"خطا در process_patient_message: {e}")
-            # fallback با requests معمولی
+            # در صورت خطا، یک پیام ساده به کاربر بفرستید (اختیاری)
             try:
-                requests.post(f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage", json={"chat_id": chat_id, "text": "خطایی رخ داده است. لطفاً دقایقی دیگر تلاش کنید."})
+                requests.post(f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage", 
+                              json={"chat_id": chat_id, "text": "خطایی رخ داده است. لطفاً دقایقی دیگر تلاش کنید."})
             except:
                 pass
         finally:
             db_session.close()
+
     threading.Thread(target=process).start()
     return jsonify({"status": "ok"}), 200
 
+# ========== مسیرهای کمکی ==========
 @app.route('/set_webhook', methods=['GET'])
 def set_webhook():
-    railway_domain = "clinicos-production-9a22.up.railway.app"
+    """تنظیم وب‌هوک تلگرام (یک بار اجرا کنید)"""
+    railway_domain = os.environ.get('RAILWAY_PUBLIC_DOMAIN')
+    if not railway_domain:
+        railway_domain = "clinicos-production-9a22.up.railway.app"  # آدرس واقعی خود را بگذارید
     webhook_url = f"https://{railway_domain}/webhook"
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/setWebhook?url={webhook_url}"
     try:
@@ -101,7 +127,7 @@ def set_webhook():
     except Exception as e:
         return str(e), 500
 
-@app.route('/health')
+@app.route('/health', methods=['GET'])
 def health():
     return jsonify({"status": "ok"}), 200
 
