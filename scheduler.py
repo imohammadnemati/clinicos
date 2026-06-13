@@ -11,25 +11,31 @@ from models import Clinic
 
 logger = logging.getLogger(__name__)
 
-scheduler = AsyncIOScheduler()
+scheduler = None
+
+def get_scheduler():
+    global scheduler
+    if scheduler is None:
+        scheduler = AsyncIOScheduler()
+    return scheduler
 
 async def nightly_jobs():
-    logger.info("🌙 شروع وظایف شبانه...")
+    logger.info("🌙 Starting nightly jobs...")
     try:
         await recover_lost_leads()
-        logger.info("✅ بازیابی لیدها انجام شد.")
+        logger.info("✅ Lost leads recovery done.")
     except Exception as e:
-        logger.error(f"❌ خطا در بازیابی لیدها: {e}")
+        logger.error(f"❌ Lost leads error: {e}")
     try:
         await send_reminders()
-        logger.info("✅ یادآوری نوبت‌ها ارسال شد.")
+        logger.info("✅ Reminders sent.")
     except Exception as e:
-        logger.error(f"❌ خطا در ارسال یادآوری: {e}")
+        logger.error(f"❌ Reminders error: {e}")
     try:
         await check_no_shows()
-        logger.info("✅ تشخیص عدم حضور انجام شد.")
+        logger.info("✅ No-shows checked.")
     except Exception as e:
-        logger.error(f"❌ خطا در تشخیص عدم حضور: {e}")
+        logger.error(f"❌ No-shows error: {e}")
     try:
         db = SessionLocal()
         clinics = db.query(Clinic).all()
@@ -37,20 +43,33 @@ async def nightly_jobs():
         yesterday = datetime.utcnow().date() - timedelta(days=1)
         for clinic in clinics:
             calculate_daily_kpi(clinic.id, yesterday)
-        logger.info("✅ آمار روزانه محاسبه شد.")
+        logger.info("✅ Daily KPIs calculated.")
     except Exception as e:
-        logger.error(f"❌ خطا در محاسبه آمار: {e}")
-    logger.info("✅ وظایف شبانه پایان یافت.")
+        logger.error(f"❌ KPIs error: {e}")
+    logger.info("✅ Nightly jobs finished.")
 
 def start_scheduler():
-    if not scheduler.running:
-        scheduler.add_job(nightly_jobs, CronTrigger(hour=2, minute=0), id="nightly_jobs")
-        scheduler.start()
-        logger.info("⏰ زمان‌بند راه‌اندازی شد.")
-    else:
-        logger.warning("زمان‌بند قبلاً در حال اجراست.")
+    """Start the scheduler in a way that works with existing event loop."""
+    sched = get_scheduler()
+    if not sched.running:
+        # Add job only once
+        if not sched.get_job("nightly_jobs"):
+            sched.add_job(nightly_jobs, CronTrigger(hour=2, minute=0), id="nightly_jobs")
+        # Try to start the scheduler; if no event loop, create one in a background thread
+        try:
+            asyncio.get_running_loop()
+            # We are already inside an async loop – start directly
+            sched.start()
+        except RuntimeError:
+            # No running loop – start in a separate thread
+            def run_scheduler():
+                asyncio.run(sched.start())
+            import threading
+            threading.Thread(target=run_scheduler, daemon=True).start()
+        logger.info("⏰ Scheduler started.")
 
 def stop_scheduler():
-    if scheduler.running:
-        scheduler.shutdown()
-        logger.info("⏰ زمان‌بند متوقف شد.")
+    sched = get_scheduler()
+    if sched.running:
+        sched.shutdown()
+        logger.info("⏰ Scheduler stopped.")
