@@ -1,7 +1,6 @@
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from datetime import datetime, timedelta
-import asyncio
 import logging
 from lost_lead_recovery import recover_lost_leads
 from appointment_engine import send_reminders, check_no_shows
@@ -11,13 +10,13 @@ from models import Clinic
 
 logger = logging.getLogger(__name__)
 
-scheduler = None
+_scheduler = None
 
 def get_scheduler():
-    global scheduler
-    if scheduler is None:
-        scheduler = AsyncIOScheduler()
-    return scheduler
+    global _scheduler
+    if _scheduler is None:
+        _scheduler = AsyncIOScheduler()
+    return _scheduler
 
 async def nightly_jobs():
     logger.info("🌙 Starting nightly jobs...")
@@ -48,28 +47,9 @@ async def nightly_jobs():
         logger.error(f"❌ KPIs error: {e}")
     logger.info("✅ Nightly jobs finished.")
 
-def start_scheduler():
-    """Start the scheduler in a way that works with existing event loop."""
+def init_scheduler():
+    """Add the nightly job to the scheduler (does not start it)."""
     sched = get_scheduler()
-    if not sched.running:
-        # Add job only once
-        if not sched.get_job("nightly_jobs"):
-            sched.add_job(nightly_jobs, CronTrigger(hour=2, minute=0), id="nightly_jobs")
-        # Try to start the scheduler; if no event loop, create one in a background thread
-        try:
-            asyncio.get_running_loop()
-            # We are already inside an async loop – start directly
-            sched.start()
-        except RuntimeError:
-            # No running loop – start in a separate thread
-            def run_scheduler():
-                asyncio.run(sched.start())
-            import threading
-            threading.Thread(target=run_scheduler, daemon=True).start()
-        logger.info("⏰ Scheduler started.")
-
-def stop_scheduler():
-    sched = get_scheduler()
-    if sched.running:
-        sched.shutdown()
-        logger.info("⏰ Scheduler stopped.")
+    if not sched.get_job("nightly_jobs"):
+        sched.add_job(nightly_jobs, CronTrigger(hour=2, minute=0), id="nightly_jobs")
+        logger.info("Nightly job added to scheduler.")
