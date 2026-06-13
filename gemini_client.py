@@ -1,11 +1,12 @@
 """
-کلاینت متمرکز Gemini با قابلیت کشف مدل، fallback و لاگ‌گیری.
+Centralized Gemini client with model discovery, fallback, and logging.
+No external retry library – uses simple loop with exponential backoff.
 """
 
 import logging
 import requests
+import asyncio
 from typing import Optional, List
-from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 from config import GEMINI_API_KEY, GEMINI_MODEL
 
 logger = logging.getLogger(__name__)
@@ -21,9 +22,9 @@ class GeminiClient:
         self._init_model()
 
     def _init_model(self):
-        """دریافت لیست مدل‌های موجود و انتخاب اولین مدل کاری."""
+        """Discover available models and select the best working one."""
         if not self.api_key:
-            raise ValueError("GEMINI_API_KEY تنظیم نشده است.")
+            raise ValueError("GEMINI_API_KEY is not set. Cannot initialize Gemini client.")
 
         try:
             resp = requests.get(
@@ -34,7 +35,7 @@ class GeminiClient:
             resp.raise_for_status()
             models_data = resp.json()
         except Exception as e:
-            logger.error(f"خطا در دریافت لیست مدل‌های Gemini: {e}")
+            logger.error(f"Failed to list Gemini models: {e}")
             raise
 
         available_models: List[str] = []
@@ -44,7 +45,7 @@ class GeminiClient:
             if name and "generateContent" in supported_methods:
                 available_models.append(name)
 
-        logger.info(f"مدل‌های Gemini پشتیبانی‌کننده generateContent: {available_models}")
+        logger.info(f"Available Gemini models supporting generateContent: {available_models}")
 
         priority = [
             "gemini-2.5-flash",
@@ -61,21 +62,19 @@ class GeminiClient:
 
         if not selected and available_models:
             selected = available_models[0]
-            logger.warning(f"مدل ترجیحی یافت نشد. استفاده از اولین مدل موجود: {selected}")
+            logger.warning(f"No preferred model found. Using first available: {selected}")
         elif not selected:
-            raise RuntimeError("هیچ مدل Gemini پشتیبانی‌کننده generateContent در دسترس نیست.")
+            raise RuntimeError("No Gemini models supporting generateContent are available.")
 
         self.working_model = selected
-        logger.info(f"مدل انتخاب‌شده Gemini: {self.working_model}")
+        logger.info(f"Selected Gemini model: {self.working_model}")
 
-    @retry(
-        stop=stop_after_attempt(3),
-        wait=wait_exponential(multiplier=1, min=1, max=10),
-        retry=retry_if_exception_type((requests.exceptions.RequestException, ConnectionError))
-    )
-    async def generate_content(self, prompt: str, temperature: float = 0.7, max_tokens: int = 500) -> str:
+    async def generate_content(self, prompt: str, temperature: float = 0.7, max_tokens: int = 500, max_retries: int = 3) -> str:
+        """
+        Generate content using the selected model with simple retry logic.
+        """
         if not self.working_model:
-            raise RuntimeError("مدل Gemini مقداردهی نشده است.")
+            raise RuntimeError("Gemini model not initialized.")
 
         url = GENERATE_URL.format(model=self.working_model)
         headers = {"Content-Type": "application/json"}
@@ -87,32 +86,38 @@ class GeminiClient:
             },
         }
 
-        try:
-            resp = await self._async_post(url, headers=headers, json=payload, params={"key": self.api_key})
-            resp.raise_for_status()
-            data = resp.json()
-            return data['candidates'][0]['content']['parts'][0]['text'].strip()
-        except Exception as e:
-            logger.error(
-                f"خطای API Gemini: مدل={self.working_model}, وضعیت={getattr(resp, 'status_code', 'N/A')}, خطا={str(e)}"
-            )
-            raise
+        last_exception = None
+        for attempt in range(max_retries):
+            try:
+                resp = await self._async_post(url, headers=headers, json=payload, params={"key": self.api_key})
+                resp.raise_for_status()
+                data = resp.json()
+                return data['candidates'][0]['content']['parts'][0]['text'].strip()
+            except Exception as e:
+                last_exception = e
+                logger.warning(f"Gemini attempt {attempt+1} failed: {e}")
+                if attempt < max_retries - 1:
+                    await asyncio.sleep(2 ** attempt)  # exponential backoff
+        logger.error(f"Gemini API error after {max_retries} attempts: Model={self.working_model}, Error={last_exception}")
+        raise last_exception or RuntimeError("Gemini request failed")
 
     async def _async_post(self, url, headers, json, params):
-        import asyncio
         return await asyncio.to_thread(requests.post, url, headers=headers, json=json, params=params, timeout=15)
 
     def test_connection(self) -> bool:
-        """تست اتصال با ارسال پرامپت ساده 'Reply with OK' و انتظار 'OK'."""
-        import asyncio
+        """
+        Synchronous test: send simple prompt "Reply with OK" and expect "OK".
+        Returns True if successful.
+        """
         try:
+            import asyncio
             result = asyncio.run(self.generate_content("Reply with OK", max_tokens=5))
             return result.strip().upper() == "OK"
         except Exception as e:
-            logger.error(f"تست اتصال Gemini ناموفق: {e}")
+            logger.error(f"Gemini connection test failed: {e}")
             return False
 
-# نمونه singleton
+# Singleton instance
 _gemini_client = None
 
 def get_gemini_client() -> GeminiClient:
