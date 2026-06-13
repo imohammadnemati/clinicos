@@ -573,10 +573,10 @@ async def show_patient_appointments(update: Update, context: ContextTypes.DEFAUL
 
 # ========== Gemini Test Command ==========
 async def test_gemini(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """دستور تست اتصال به Gemini"""
+    """دستور تست اتصال به Gemini (فقط در صورت نیاز)"""
     try:
         client = get_gemini_client()
-        result = client.test_connection()
+        result = await client.test_connection_async()  # نیاز به اضافه کردن این متد در gemini_client
         if result:
             await update.message.reply_text("✅ تست Gemini: موفق\nمدل فعال: " + client.working_model)
         else:
@@ -590,45 +590,30 @@ async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update and update.effective_message:
         await update.effective_message.reply_text("❌ خطای داخلی. لطفاً دقایقی دیگر تلاش کنید.")
 
-# ========== Gemini Startup Diagnostic ==========
-def diagnose_gemini():
-    """بررسی اتصال Gemini در زمان راه‌اندازی"""
-    try:
-        client = get_gemini_client()
-        logger.info(f"Gemini model selected: {client.working_model}")
-        if client.test_connection():
-            logger.info("Gemini connection test: SUCCESS")
-        else:
-            logger.error("Gemini connection test: FAILED")
-    except Exception as e:
-        logger.error(f"Gemini initialization failed: {e}")
-
 # ========== Main Application ==========
 def main():
     init_db()
 
-    # حذف وب‌هوک قدیمی (در صورت وجود)
+    # حذف وب‌هوک قدیمی
     try:
         requests.get(f"https://api.telegram.org/bot{BOT_TOKEN}/deleteWebhook")
         logger.info("Webhook deleted.")
     except Exception as e:
         logger.warning(f"Could not delete webhook: {e}")
 
-    # راه‌اندازی تشخیص Gemini
-    diagnose_gemini()
-
     app = Application.builder().token(BOT_TOKEN).build()
 
-    # callback برای راه‌اندازی scheduler بعد از شروع event loop
-    async def start_scheduler_callback(application):
+    # callback برای راه‌اندازی scheduler بعد از شروع event loop (بدون تست Gemini همزمان)
+    async def startup(application):
         from scheduler import init_scheduler, get_scheduler
         init_scheduler()
         scheduler = get_scheduler()
         if not scheduler.running:
             scheduler.start()
             logger.info("⏰ Scheduler started.")
+        # تست Gemini را حذف کردیم تا از 429 جلوگیری شود – کاربر می‌تواند دستی /test_gemini بزند
 
-    app.post_init = start_scheduler_callback
+    app.post_init = startup
 
     # ثبت هندلرها
     app.add_handler(CommandHandler("start", start))
