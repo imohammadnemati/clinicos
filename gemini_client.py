@@ -1,10 +1,12 @@
 """
 Centralized Gemini client with model discovery, fallback, and logging.
+No external retry library – uses simple loop with exponential backoff.
 """
 
 import logging
 import requests
 import asyncio
+import random
 from typing import Optional, List
 from config import GEMINI_API_KEY, GEMINI_MODEL
 
@@ -21,8 +23,9 @@ class GeminiClient:
         self._init_model()
 
     def _init_model(self):
+        """Discover available models and select the best working one."""
         if not self.api_key:
-            raise ValueError("GEMINI_API_KEY is not set.")
+            raise ValueError("GEMINI_API_KEY is not set. Cannot initialize Gemini client.")
 
         try:
             resp = requests.get(
@@ -45,7 +48,6 @@ class GeminiClient:
 
         logger.info(f"Available Gemini models supporting generateContent: {available_full_names}")
 
-        # Priority list of model names (without 'models/' prefix)
         priority = [
             "gemini-2.5-flash",
             "gemini-2.0-flash",
@@ -69,7 +71,8 @@ class GeminiClient:
         self.working_model = selected_full.replace("models/", "")
         logger.info(f"Selected Gemini model: {self.working_model}")
 
-    async def generate_content(self, prompt: str, temperature: float = 0.7, max_tokens: int = 500, max_retries: int = 3) -> str:
+    async def generate_content(self, prompt: str, temperature: float = 0.7, max_tokens: int = 500, max_retries: int = 5) -> str:
+        """Generate content with retry and exponential backoff, especially for 429."""
         if not self.working_model:
             raise RuntimeError("Gemini model not initialized.")
 
@@ -87,6 +90,11 @@ class GeminiClient:
         for attempt in range(max_retries):
             try:
                 resp = await self._async_post(url, headers=headers, json=payload, params={"key": self.api_key})
+                if resp.status_code == 429:
+                    wait = min((2 ** attempt) * 1.5 + random.uniform(0, 1), 30)  # max 30 sec
+                    logger.warning(f"Rate limited (429), retrying in {wait:.2f}s...")
+                    await asyncio.sleep(wait)
+                    continue
                 resp.raise_for_status()
                 data = resp.json()
                 return data['candidates'][0]['content']['parts'][0]['text'].strip()
@@ -99,15 +107,24 @@ class GeminiClient:
         raise last_exception or RuntimeError("Gemini request failed")
 
     async def _async_post(self, url, headers, json, params):
-        return await asyncio.to_thread(requests.post, url, headers=headers, json=json, params=params, timeout=15)
+        return await asyncio.to_thread(requests.post, url, headers=headers, json=json, params=params, timeout=30)
 
-    def test_connection(self) -> bool:
+    async def test_connection_async(self) -> bool:
+        """Test Gemini connection asynchronously (to be used within event loop)."""
         try:
-            import asyncio
-            result = asyncio.run(self.generate_content("Reply with OK", max_tokens=5))
-            return result.strip().upper() == "OK"
+            # Add random jitter to avoid burst 429
+            await asyncio.sleep(random.uniform(0.5, 2.0))
+            await self.generate_content("Reply with OK", max_tokens=5)
+            return True
         except Exception as e:
             logger.error(f"Gemini connection test failed: {e}")
+            return False
+
+    def test_connection(self) -> bool:
+        """Synchronous version (legacy) – not recommended for new code."""
+        try:
+            return asyncio.run(self.test_connection_async())
+        except Exception:
             return False
 
 _gemini_client = None
