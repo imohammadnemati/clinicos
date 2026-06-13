@@ -4,8 +4,7 @@ import asyncio
 import hashlib
 import logging
 from datetime import datetime
-import google.generativeai as genai
-from config import GEMINI_API_KEY, LEAD_THRESHOLD
+from config import LEAD_THRESHOLD
 from database import SessionLocal
 from models import (
     Session as SessionModel,
@@ -28,22 +27,9 @@ from lead_scorer import calculate_lead_score
 from language_detector import detect_language
 from medical_safety import check_medical_risk
 from working_hours import can_auto_reply
+from gemini_client import get_gemini_client
 
 logger = logging.getLogger(__name__)
-
-# ---------- Google Gemini ----------
-genai.configure(api_key=GEMINI_API_KEY)
-gemini_model = genai.GenerativeModel('gemini-1.5-flash')
-
-async def call_gemini(prompt: str, max_retries: int = 2) -> str:
-    for attempt in range(max_retries):
-        try:
-            response = await asyncio.to_thread(gemini_model.generate_content, prompt)
-            return response.text.strip()
-        except Exception as e:
-            logger.warning(f"Gemini attempt {attempt+1} failed: {e}")
-            await asyncio.sleep(1)
-    return "An error occurred. Please try again later."
 
 # ---------- Prompts ----------
 FACTS_PROMPT = """
@@ -73,44 +59,53 @@ JSON:
 REPLY_PROMPTS = {
     'en': """You are a professional, warm, and friendly receptionist at a cosmetic clinic.
 You are already in a conversation with the patient. Do NOT start with a greeting unless this is the very first message.
-Continue naturally. Keep responses short, polite, helpful.
-Use history to provide coherent answers.
-If price: "The price depends on area and units. Could you tell me which area?"
-If serious medical: "For an accurate answer, you need to consult our doctor. Would you like a free consultation?"
-Only output the reply.
+Continue the conversation naturally. Keep responses short, polite, and helpful.
+Use the conversation history to provide coherent answers.
+If the user asks about prices, say: "The price depends on the area and number of units. Could you please tell me which area you're interested in?"
+If the user asks medical questions that require a doctor, say: "For an accurate answer, you need to consult our doctor. Would you like to book a free consultation?"
+Only output the reply, nothing else.
 
-History: {history}
-Patient: {question}
-Reply:""",
+Conversation history (last exchanges):
+{history}
 
-    'fa': """تو منشی حرفه‌ای، گرم و صمیمی کلینیک زیبایی. در حال گفتگو با بیمار. مگر اولین پیام، با سلام شروع نکن. پاسخ کوتاه، مؤدبانه و مفید.
-از تاریخچه استفاده کن.
-قیمت: "قیمت بستگی به ناحیه و شرایط داره، لطفاً ناحیه مورد نظر رو بفرمایید."
-پزشکی: "برای پاسخ دقیق نیاز به معاینه پزشک داریم. وقت مشاوره بگیرید؟"
-فقط پاسخ را بنویس.
+Current patient message: {question}
+Your reply:""",
 
-تاریخچه: {history}
-بیمار: {question}
+    'fa': """تو یک منشی حرفه‌ای، گرم و صمیمی کلینیک زیبایی هستی. هم‌اکنون در حال گفتگو با بیمار هستی. مگر اینکه این اولین پیام گفتگو باشد، هیچ‌گاه با "سلام" شروع نکن. مکالمه را طبیعی ادامه بده.
+از تاریخچه گفتگو برای پاسخ‌های پیوسته استفاده کن. تاریخچه شامل پیام‌های قبلی بیمار است.
+اگر بیمار درباره قیمت پرسید بگو: "قیمت بستگی به ناحیه و شرایط داره، لطفاً ناحیه مد نظرتون رو بفرمایید."
+اگر سوال پزشکی است که نیاز به پزشک دارد بگو: "برای پاسخ دقیق نیاز به معاینه توسط پزشک داریم. می‌تونید وقت مشاوره بگیرید؟"
+فقط پاسخ را بنویس، بدون توضیح اضافه.
+
+تاریخچه گفتگو (چند پیام آخر):
+{history}
+
+پیام فعلی بیمار: {question}
 پاسخ تو:""",
 
-    'ar': """أنت موظف استقبال محترم و ودود في عيادة تجميل. أنت في محادثة. لا تبدأ بـ "مرحباً" إلا إذا كانت أول رسالة. أجب باختصار وأدب.
-استخدم التاريخ.
-السعر: "السعر يعتمد على المنطقة والوحدات. هل تخبرني بالمنطقة؟"
-الطبية: "للإجابة الدقيقة تحتاج استشارة الطبيب. هل ترغب في حجز استشارة مجانية؟"
-أخرج الرد فقط.
+    'ar': """أنت موظف استقبال محترم و ودود في عيادة تجميل. أنت الآن في محادثة مع المريض. لا تبدأ بـ "مرحباً" إلا إذا كانت أول رسالة. استمر في المحادثة بشكل طبيعي.
+استخدم تاريخ المحادثة للإجابة المستمرة.
+إذا سأل عن الأسعار قل: "السعر يعتمد على المنطقة وعدد الوحدات. هل تخبرني بالمنطقة التي تهتم بها؟"
+إذا سأل أسئلة طبية تحتاج إلى طبيب قل: "للحصول على إجابة دقيقة، تحتاج إلى استشارة طبيبنا. هل ترغب في حجز استشارة مجانية؟"
+فقط أخرج الرد، لا شيء إضافي.
 
-التاريخ: {history}
-المريض: {question}
+تاريخ المحادثة (آخر رسالتين):
+{history}
+
+رسالة المريض الحالية: {question}
 ردك:"""
 }
 
+# ---------- Helper Functions ----------
 async def get_conversation_history(session_id: int, db, limit: int = 6) -> str:
-    events = db.query(Event).filter(Event.session_id == session_id).order_by(Event.created_at.desc()).limit(limit).all()
-    history = []
+    events = db.query(Event).filter(
+        Event.session_id == session_id
+    ).order_by(Event.created_at.desc()).limit(limit).all()
+    history_list = []
     for ev in reversed(events):
         if ev.extracted_question:
-            history.append(f"Patient: {ev.extracted_question}")
-    return "\n".join(history)
+            history_list.append(f"Patient: {ev.extracted_question}")
+    return "\n".join(history_list)
 
 async def update_conversation_state(session_id: int, service: str, intent: str, objection: str, db):
     state = db.query(ConversationState).filter_by(session_id=session_id).first()
@@ -138,8 +133,10 @@ async def generate_reply(clinic_id: int, question: str, patient_id: int, lang: s
     finally:
         db.close()
     prompt = REPLY_PROMPTS.get(lang, REPLY_PROMPTS['en']).format(history=history, question=question)
-    return await call_gemini(prompt)
+    client = get_gemini_client()
+    return await client.generate_content(prompt)
 
+# ---------- Main Processing Function ----------
 async def process_patient_message(update, context, clinic_id, platform, external_user_id, raw_text,
                                   media_url=None, media_type=None, transcript=None, db=None):
     if db is None:
@@ -160,7 +157,7 @@ async def process_patient_message(update, context, clinic_id, platform, external
         session_id = get_or_create_session(clinic_id, patient_id)
         update_session_activity(session_id)
 
-        # Medical safety (Gemini based)
+        # Medical safety
         is_risk, risk_level = await check_medical_risk(raw_text)
         if is_risk:
             db.add(EscalationLog(clinic_id=clinic_id, patient_id=patient_id, session_id=session_id,
@@ -202,7 +199,8 @@ async def process_patient_message(update, context, clinic_id, platform, external
             context_str += f"User previously expressed fear: {prev_state.missing_information['fear_topic']}. "
 
         prompt_text = FACTS_PROMPT.replace("{context}", context_str).replace("{message}", raw_text)
-        facts_json = await call_gemini(prompt_text)
+        client = get_gemini_client()
+        facts_json = await client.generate_content(prompt_text, temperature=0.2, max_tokens=500)
         facts_json = re.sub(r'```json\n?|```', '', facts_json.strip())
         try:
             facts = json.loads(facts_json)
