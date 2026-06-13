@@ -1,6 +1,7 @@
 """
 ClinicOS Telegram Bot – Redesigned UX
 Fully compatible with existing database models (uses PatientAlias for telegram IDs).
+Uses centralized Gemini client with auto model discovery and fallback.
 """
 
 import logging
@@ -19,6 +20,7 @@ from patient_agent import process_patient_message
 from appointment_engine import create_appointment_request
 from scheduler import start_scheduler
 from kpi_engine import get_kpi_summary
+from gemini_client import get_gemini_client
 import requests
 
 logging.basicConfig(level=logging.INFO)
@@ -43,7 +45,6 @@ def get_or_create_patient_by_telegram(telegram_id: int, name: str, db) -> Patien
     patient = get_patient_by_telegram_id(telegram_id, db)
     if patient:
         return patient
-    # Create patient
     clinic = db.query(Clinic).first()
     if not clinic:
         clinic = Clinic(name="Default Clinic", subdomain="default")
@@ -58,7 +59,6 @@ def get_or_create_patient_by_telegram(telegram_id: int, name: str, db) -> Patien
     return patient
 
 def get_user_language(user_id: int, db) -> str:
-    """Get preferred language for any user (staff or patient)."""
     staff = db.query(Staff).filter_by(telegram_id=user_id).first()
     if staff and hasattr(staff, 'language') and staff.language:
         return staff.language
@@ -68,7 +68,6 @@ def get_user_language(user_id: int, db) -> str:
     return 'fa'
 
 def set_user_language(user_id: int, lang: str, db):
-    """Store preferred language for user."""
     staff = db.query(Staff).filter_by(telegram_id=user_id).first()
     if staff:
         staff.language = lang
@@ -99,14 +98,13 @@ def get_user_clinic_id(user_id: int, db) -> int:
     return clinic.id
 
 def get_main_keyboard(role: str):
-    """Return ReplyKeyboardMarkup based on role."""
     if role == 'owner':
         buttons = [['📊 Dashboard', '👥 Staff'], ['🏥 Clinic', '⚙️ Settings'], ['💰 Revenue', '📈 Reports']]
     elif role == 'doctor':
         buttons = [['📅 Today', '👥 Patients'], ['🚨 Escalations', '📊 Performance']]
     elif role == 'secretary':
         buttons = [['📅 Appointments', '👥 Patients'], ['🔥 Leads', '🔔 Notifications'], ['📊 Statistics', '👩‍💼 Handoff']]
-    else:  # patient
+    else:
         buttons = [['🏠 Home', '📅 Book Appointment'], ['💬 Ask Clinic', '📋 Services'], ['👩‍💼 Human Receptionist', '📄 My Appointments']]
     return ReplyKeyboardMarkup(buttons, resize_keyboard=True)
 
@@ -135,7 +133,7 @@ def format_dashboard(role: str, clinic_id: int, db, user_id: int) -> str:
             EscalationLog.created_at >= today_start, EscalationLog.escalated_to == 'doctor'
         ).count()
         return f"👨‍⚕️ *Doctor Dashboard*\n\n🚨 Pending escalations: {pending}"
-    else:  # patient
+    else:
         patient = get_patient_by_telegram_id(user_id, db)
         name = patient.name if patient else "عزیز"
         return f"🏠 *Home*\n\nسلام {name} 🌷\nبه کلینیک خوش آمدید."
@@ -148,7 +146,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         lang = get_user_language(user_id, db)
         if lang:
-            # Already set language, show main menu
             role = get_user_role(user_id, db)
             clinic_id = get_user_clinic_id(user_id, db)
             await send_main_menu(update, context, role, clinic_id, db, user_id)
@@ -224,10 +221,8 @@ async def main_menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         elif text == '📄 My Appointments' and role == 'patient':
             await show_patient_appointments(update, context)
         elif text == '💬 Ask Clinic' and role == 'patient':
-            # Forward to patient_agent
             await process_patient_message(update, None, clinic_id, "telegram", str(user_id), text, db=db)
         else:
-            # Unknown – if patient, let patient_agent handle it
             if role == 'patient':
                 await process_patient_message(update, None, clinic_id, "telegram", str(user_id), text, db=db)
             else:
@@ -235,14 +230,16 @@ async def main_menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     finally:
         db.close()
 
-# ========== Appointment Wizard (simplified) ==========
+# ========== Appointment Wizard ==========
 async def start_appointment_booking(update: Update, context: ContextTypes.DEFAULT_TYPE, clinic_id: int):
-    keyboard = [[InlineKeyboardButton("بوتاکس", callback_data="appt_service_botox")],
-                [InlineKeyboardButton("فیلر", callback_data="appt_service_filler")],
-                [InlineKeyboardButton("لیزر", callback_data="appt_service_laser")],
-                [InlineKeyboardButton("مزوتراپی", callback_data="appt_service_mesotherapy")],
-                [InlineKeyboardButton("جراحی", callback_data="appt_service_surgery")],
-                [InlineKeyboardButton("❌ انصراف", callback_data="appt_cancel")]]
+    keyboard = [
+        [InlineKeyboardButton("بوتاکس", callback_data="appt_service_botox")],
+        [InlineKeyboardButton("فیلر", callback_data="appt_service_filler")],
+        [InlineKeyboardButton("لیزر", callback_data="appt_service_laser")],
+        [InlineKeyboardButton("مزوتراپی", callback_data="appt_service_mesotherapy")],
+        [InlineKeyboardButton("جراحی", callback_data="appt_service_surgery")],
+        [InlineKeyboardButton("❌ انصراف", callback_data="appt_cancel")]
+    ]
     await update.message.reply_text("📅 لطفاً خدمت مورد نظر را انتخاب کنید:", reply_markup=InlineKeyboardMarkup(keyboard))
     return APPT_SERVICE
 
@@ -296,13 +293,11 @@ async def appointment_confirm_callback(update: Update, context: ContextTypes.DEF
         clinic_id = get_user_clinic_id(user_id, db)
         patient = get_patient_by_telegram_id(user_id, db)
         if not patient:
-            # Create patient automatically
             patient = get_or_create_patient_by_telegram(user_id, update.effective_user.full_name, db)
         service = context.user_data['booking_service']
         date_str = context.user_data['booking_date']
         time_str = context.user_data['booking_time']
         suggested_datetime = datetime.strptime(f"{date_str} {time_str}", "%Y-%m-%d %H:%M")
-        # Find or create lead
         lead = db.query(Lead).filter_by(patient_id=patient.id, pipeline_stage='new').first()
         if not lead:
             lead = Lead(clinic_id=clinic_id, patient_id=patient.id, service=service, lead_score=5.0, pipeline_stage='new')
@@ -344,12 +339,14 @@ async def human_handoff(update: Update, context: ContextTypes.DEFAULT_TYPE, clin
 
 # ========== Staff Management ==========
 async def show_staff_menu(update: Update, context: ContextTypes.DEFAULT_TYPE, clinic_id: int):
-    keyboard = [[InlineKeyboardButton("➕ Add Doctor", callback_data="staff_add_doctor")],
-                [InlineKeyboardButton("➕ Add Secretary", callback_data="staff_add_secretary")],
-                [InlineKeyboardButton("➕ Add Admin", callback_data="staff_add_admin")],
-                [InlineKeyboardButton("📋 Staff List", callback_data="staff_list")],
-                [InlineKeyboardButton("🗑 Remove Staff", callback_data="staff_remove")],
-                [InlineKeyboardButton("🔙 Back", callback_data="staff_back")]]
+    keyboard = [
+        [InlineKeyboardButton("➕ Add Doctor", callback_data="staff_add_doctor")],
+        [InlineKeyboardButton("➕ Add Secretary", callback_data="staff_add_secretary")],
+        [InlineKeyboardButton("➕ Add Admin", callback_data="staff_add_admin")],
+        [InlineKeyboardButton("📋 Staff List", callback_data="staff_list")],
+        [InlineKeyboardButton("🗑 Remove Staff", callback_data="staff_remove")],
+        [InlineKeyboardButton("🔙 Back", callback_data="staff_back")]
+    ]
     await update.message.reply_text("👥 Staff Management", reply_markup=InlineKeyboardMarkup(keyboard))
 
 async def staff_menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -575,27 +572,57 @@ async def show_patient_appointments(update: Update, context: ContextTypes.DEFAUL
     finally:
         db.close()
 
+# ========== Gemini Test Command ==========
+async def test_gemini(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """دستور تست اتصال به Gemini"""
+    try:
+        client = get_gemini_client()
+        result = client.test_connection()
+        if result:
+            await update.message.reply_text("✅ تست Gemini: موفق\nمدل فعال: " + client.working_model)
+        else:
+            await update.message.reply_text("❌ تست Gemini: ناموفق. لطفاً لاگ‌ها را بررسی کنید.")
+    except Exception as e:
+        await update.message.reply_text(f"❌ خطا در تست Gemini: {str(e)}")
+
 # ========== Error Handler ==========
 async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logger.error(f"Exception: {context.error}", exc_info=context.error)
     if update and update.effective_message:
         await update.effective_message.reply_text("❌ خطای داخلی. لطفاً دقایقی دیگر تلاش کنید.")
 
+# ========== Gemini Startup Diagnostic ==========
+def diagnose_gemini():
+    """بررسی اتصال Gemini در زمان راه‌اندازی"""
+    try:
+        client = get_gemini_client()
+        logger.info(f"Gemini model selected: {client.working_model}")
+        if client.test_connection():
+            logger.info("Gemini connection test: SUCCESS")
+        else:
+            logger.error("Gemini connection test: FAILED")
+    except Exception as e:
+        logger.error(f"Gemini initialization failed: {e}")
+
 # ========== Main Application ==========
 def main():
     init_db()
 
-    # Delete webhook to avoid conflict
+    # حذف وب‌هوک قدیمی (در صورت وجود) برای جلوگیری از Conflict
     try:
         requests.get(f"https://api.telegram.org/bot{BOT_TOKEN}/deleteWebhook")
         logger.info("Webhook deleted.")
     except Exception as e:
         logger.warning(f"Could not delete webhook: {e}")
 
+    # راه‌اندازی تشخیص Gemini
+    diagnose_gemini()
+
     app = Application.builder().token(BOT_TOKEN).build()
 
-    # Conversation handlers
+    # ثبت هندلرها
     app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("test_gemini", test_gemini))
     app.add_handler(CallbackQueryHandler(language_callback, pattern='^lang_'))
     app.add_handler(ConversationHandler(
         entry_points=[CallbackQueryHandler(staff_menu_callback, pattern='^staff_add_')],
@@ -605,7 +632,6 @@ def main():
     ))
     app.add_handler(CallbackQueryHandler(staff_menu_callback, pattern='^staff_'))
     app.add_handler(CallbackQueryHandler(remove_staff_callback, pattern='^remove_staff_'))
-    # Appointment wizard
     app.add_handler(ConversationHandler(
         entry_points=[MessageHandler(filters.Regex('^📅 Book Appointment$'), start_appointment_booking)],
         states={
@@ -620,7 +646,7 @@ def main():
     app.add_error_handler(error_handler)
 
     start_scheduler()
-    logger.info("🚀 ClinicOS bot started with full UX redesign")
+    logger.info("🚀 ClinicOS bot started with full UX redesign and Gemini integration")
     app.run_polling()
 
 if __name__ == "__main__":
