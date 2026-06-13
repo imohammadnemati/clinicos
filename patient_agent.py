@@ -4,8 +4,8 @@ import asyncio
 import hashlib
 import logging
 from datetime import datetime
-import requests
-from config import GROQ_API_KEY, LEAD_THRESHOLD
+import google.generativeai as genai
+from config import GEMINI_API_KEY, LEAD_THRESHOLD
 from database import SessionLocal
 from models import (
     Session as SessionModel,
@@ -31,32 +31,21 @@ from working_hours import can_auto_reply
 
 logger = logging.getLogger(__name__)
 
-GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
-GROQ_MODEL = "llama-3.3-70b-versatile"
+# ---------- Google Gemini ----------
+genai.configure(api_key=GEMINI_API_KEY)
+gemini_model = genai.GenerativeModel('gemini-1.5-flash')
 
-async def call_groq(prompt: str, max_retries: int = 2) -> str:
-    headers = {
-        "Authorization": f"Bearer {GROQ_API_KEY}",
-        "Content-Type": "application/json"
-    }
-    data = {
-        "model": GROQ_MODEL,
-        "messages": [{"role": "user", "content": prompt}],
-        "temperature": 0.7,
-        "max_tokens": 500
-    }
+async def call_gemini(prompt: str, max_retries: int = 2) -> str:
     for attempt in range(max_retries):
         try:
-            resp = await asyncio.to_thread(requests.post, GROQ_URL, headers=headers, json=data, timeout=15)
-            if resp.status_code == 200:
-                return resp.json()['choices'][0]['message']['content'].strip()
-            else:
-                logger.warning(f"Groq error {resp.status_code}: {resp.text}")
+            response = await asyncio.to_thread(gemini_model.generate_content, prompt)
+            return response.text.strip()
         except Exception as e:
-            logger.warning(f"Groq attempt {attempt+1} failed: {e}")
-        await asyncio.sleep(1)
+            logger.warning(f"Gemini attempt {attempt+1} failed: {e}")
+            await asyncio.sleep(1)
     return "An error occurred. Please try again later."
 
+# ---------- Prompts ----------
 FACTS_PROMPT = """
 You are an AI assistant for a cosmetic clinic. Extract structured facts from the patient message.
 Consider the previous conversation context if provided.
@@ -75,7 +64,7 @@ Return ONLY valid JSON, no extra text, no explanation.
   "price_sensitivity": 0-10 or null,
   "important_memory": null
 }
-Important: Only set "requires_human": true if the patient explicitly asks to speak to a human, complains, or mentions a serious medical emergency (e.g., difficulty breathing, fainting, severe allergic reaction). Do NOT set requires_human for general fears like "I'm afraid of side effects".
+Important: Only set "requires_human": true if the patient explicitly asks to speak to a human, complains, or mentions a serious medical emergency.
 Context from previous conversation: {context}
 Current message: {message}
 JSON:
@@ -83,56 +72,47 @@ JSON:
 
 REPLY_PROMPTS = {
     'en': """You are a professional, warm, and friendly receptionist at a cosmetic clinic.
-You are already in a conversation with the patient. Do NOT start with a greeting like "Hello" unless this is the very first message.
-Continue the conversation naturally. Keep responses short, polite, and helpful.
-Use the conversation history to provide coherent answers. The history includes previous patient messages.
-If the user asks about common side effects or fears (e.g., droopy eyelid from Botox), explain calmly: "Botox is generally safe when injected by an experienced doctor. Temporary drooping is rare and usually resolves within a few weeks. Our doctor uses precise techniques to minimize risks."
-Only refer to a doctor if the question is about serious medical conditions (pregnancy, allergies, etc.).
-Only output the reply, nothing else.
+You are already in a conversation with the patient. Do NOT start with a greeting unless this is the very first message.
+Continue naturally. Keep responses short, polite, helpful.
+Use history to provide coherent answers.
+If price: "The price depends on area and units. Could you tell me which area?"
+If serious medical: "For an accurate answer, you need to consult our doctor. Would you like a free consultation?"
+Only output the reply.
 
-Conversation history (last exchanges):
-{history}
+History: {history}
+Patient: {question}
+Reply:""",
 
-Current patient message: {question}
-Your reply:""",
+    'fa': """تو منشی حرفه‌ای، گرم و صمیمی کلینیک زیبایی. در حال گفتگو با بیمار. مگر اولین پیام، با سلام شروع نکن. پاسخ کوتاه، مؤدبانه و مفید.
+از تاریخچه استفاده کن.
+قیمت: "قیمت بستگی به ناحیه و شرایط داره، لطفاً ناحیه مورد نظر رو بفرمایید."
+پزشکی: "برای پاسخ دقیق نیاز به معاینه پزشک داریم. وقت مشاوره بگیرید؟"
+فقط پاسخ را بنویس.
 
-    'fa': """تو یک منشی حرفه‌ای، گرم و صمیمی کلینیک زیبایی هستی. هم‌اکنون در حال گفتگو با بیمار هستی. مگر اینکه اولین پیام گفتگو باشد، هیچ‌گاه با "سلام" شروع نکن. مکالمه را طبیعی ادامه بده.
-از تاریخچه گفتگو برای پاسخ‌های پیوسته استفاده کن. تاریخچه شامل پیام‌های قبلی بیمار است.
-اگر بیمار از ترس‌های رایج مثل افتادگی پلک در بوتاکس پرسید، با آرامش توضیح بده: "بوتاکس معمولاً بی‌خطر است، افتادگی موقت پلک نادر است و ظرف چند هفته برطرف می‌شود. پزشک ما از تکنیک‌های دقیق برای کم کردن خطر استفاده می‌کند."
-فقط برای سوالات مربوط به بیماری‌های جدی (بارداری، حساسیت شدید، اورژانس) به پزشک ارجاع بده.
-فقط پاسخ را بنویس، بدون توضیح اضافه.
-
-تاریخچه گفتگو (چند پیام آخر):
-{history}
-
-پیام فعلی بیمار: {question}
+تاریخچه: {history}
+بیمار: {question}
 پاسخ تو:""",
 
-    'ar': """أنت موظف استقبال محترم و ودود في عيادة تجميل. أنت الآن في محادثة مع المريض. لا تبدأ بـ "مرحباً" إلا إذا كانت أول رسالة. استمر في المحادثة بشكل طبيعي.
-استخدم تاريخ المحادثة للإجابة المستمرة. التاريخ يتضمن رسائل المريض السابقة.
-إذا سأل المريض عن مخاوف شائعة مثل تدلي الجفن من البوتوكس، اشرح بهدوء: "البوتوكس آمن عموماً، التدلي المؤقت نادر ويختفي خلال أسابيع. طبيبنا يستخدم تقنيات دقيقة لتقليل المخاطر."
-فقط للأسئلة عن حالات خطيرة (الحمل، الحساسية الشديدة، الطوارئ) أحيله إلى الطبيب.
-فقط أخرج الرد، لا شيء إضافي.
+    'ar': """أنت موظف استقبال محترم و ودود في عيادة تجميل. أنت في محادثة. لا تبدأ بـ "مرحباً" إلا إذا كانت أول رسالة. أجب باختصار وأدب.
+استخدم التاريخ.
+السعر: "السعر يعتمد على المنطقة والوحدات. هل تخبرني بالمنطقة؟"
+الطبية: "للإجابة الدقيقة تحتاج استشارة الطبيب. هل ترغب في حجز استشارة مجانية؟"
+أخرج الرد فقط.
 
-تاريخ المحادثة (آخر رسالتين):
-{history}
-
-رسالة المريض الحالية: {question}
+التاريخ: {history}
+المريض: {question}
 ردك:"""
 }
 
 async def get_conversation_history(session_id: int, db, limit: int = 6) -> str:
-    """دریافت آخرین سوالات بیمار (برای تاریخچه)"""
-    events = db.query(Event).filter(
-        Event.session_id == session_id
-    ).order_by(Event.created_at.desc()).limit(limit).all()
-    history_list = []
+    events = db.query(Event).filter(Event.session_id == session_id).order_by(Event.created_at.desc()).limit(limit).all()
+    history = []
     for ev in reversed(events):
         if ev.extracted_question:
-            history_list.append(f"Patient: {ev.extracted_question}")
-    return "\n".join(history_list)
+            history.append(f"Patient: {ev.extracted_question}")
+    return "\n".join(history)
 
-async def update_conversation_state(session_id: int, service: str, intent: str, db):
+async def update_conversation_state(session_id: int, service: str, intent: str, objection: str, db):
     state = db.query(ConversationState).filter_by(session_id=session_id).first()
     if not state:
         state = ConversationState(session_id=session_id)
@@ -140,6 +120,8 @@ async def update_conversation_state(session_id: int, service: str, intent: str, 
     if service and service != "none":
         state.current_goal = service
     state.conversation_stage = intent
+    if objection and objection != "none":
+        state.missing_information = {"fear_topic": objection}
     state.updated_at = datetime.utcnow()
     db.commit()
 
@@ -156,7 +138,7 @@ async def generate_reply(clinic_id: int, question: str, patient_id: int, lang: s
     finally:
         db.close()
     prompt = REPLY_PROMPTS.get(lang, REPLY_PROMPTS['en']).format(history=history, question=question)
-    return await call_groq(prompt)
+    return await call_gemini(prompt)
 
 async def process_patient_message(update, context, clinic_id, platform, external_user_id, raw_text,
                                   media_url=None, media_type=None, transcript=None, db=None):
@@ -178,7 +160,7 @@ async def process_patient_message(update, context, clinic_id, platform, external
         session_id = get_or_create_session(clinic_id, patient_id)
         update_session_activity(session_id)
 
-        # ایمنی پزشکی (فقط موارد واقعاً خطرناک)
+        # Medical safety (Gemini based)
         is_risk, risk_level = await check_medical_risk(raw_text)
         if is_risk:
             db.add(EscalationLog(clinic_id=clinic_id, patient_id=patient_id, session_id=session_id,
@@ -202,24 +184,25 @@ async def process_patient_message(update, context, clinic_id, platform, external
             db.rollback()
             return
 
-        # ذخیره پیام خام
         raw = RawMessage(
             clinic_id=clinic_id, patient_id=patient_id, session_id=session_id,
             platform=platform, external_user_id=external_user_id,
-            message_text=raw_text, created_at=datetime.utcnow()
+            message_text=raw_text, media_url=media_url, media_type=media_type,
+            transcript=transcript, created_at=datetime.utcnow()
         )
         db.add(raw)
         db.flush()
 
-        # دریافت تاریخچه گفتگو
         conversation_history = await get_conversation_history(session_id, db, limit=6)
         prev_state = db.query(ConversationState).filter_by(session_id=session_id).first()
         context_str = ""
         if prev_state and prev_state.current_goal:
             context_str = f"User previously asked about {prev_state.current_goal}. "
+        if prev_state and prev_state.missing_information and 'fear_topic' in prev_state.missing_information:
+            context_str += f"User previously expressed fear: {prev_state.missing_information['fear_topic']}. "
 
         prompt_text = FACTS_PROMPT.replace("{context}", context_str).replace("{message}", raw_text)
-        facts_json = await call_groq(prompt_text)
+        facts_json = await call_gemini(prompt_text)
         facts_json = re.sub(r'```json\n?|```', '', facts_json.strip())
         try:
             facts = json.loads(facts_json)
@@ -242,7 +225,7 @@ async def process_patient_message(update, context, clinic_id, platform, external
         if facts.get("service") in ["none", None] and prev_state and prev_state.current_goal:
             facts["service"] = prev_state.current_goal
 
-        await update_conversation_state(session_id, facts.get("service"), facts.get("intent"), db)
+        await update_conversation_state(session_id, facts.get("service"), facts.get("intent"), facts.get("objection_category"), db)
 
         if facts.get("requires_human"):
             db.query(SessionModel).filter_by(id=session_id).update({"requires_human": True})
@@ -255,7 +238,6 @@ async def process_patient_message(update, context, clinic_id, platform, external
             await update.message.reply_text(human_msg)
             return
 
-        # پروفایل بیمار
         profile = db.query(PatientProfile).filter_by(patient_id=patient_id).first()
         if not profile:
             profile = PatientProfile(patient_id=patient_id)
@@ -315,7 +297,6 @@ async def process_patient_message(update, context, clinic_id, platform, external
                 if facts.get("appointment_request"):
                     db.add(AppointmentRequest(clinic_id=clinic_id, lead_id=lead.id, suggested_date=datetime.utcnow()))
 
-        # تولید پاسخ نهایی با تاریخچه کامل
         answer = await generate_reply(clinic_id, facts.get("extracted_question") or raw_text, patient_id, lang, conversation_history)
 
         ans_hash = hashlib.sha256(answer.encode()).hexdigest()
