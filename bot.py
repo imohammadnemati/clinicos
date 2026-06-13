@@ -18,7 +18,6 @@ from database import SessionLocal, init_db
 from models import Clinic, Staff, Patient, PatientAlias, Lead, Appointment, AppointmentRequest, PipelineHistory, EscalationLog
 from patient_agent import process_patient_message
 from appointment_engine import create_appointment_request
-from scheduler import start_scheduler
 from kpi_engine import get_kpi_summary
 from gemini_client import get_gemini_client
 import requests
@@ -608,7 +607,7 @@ def diagnose_gemini():
 def main():
     init_db()
 
-    # حذف وب‌هوک قدیمی (در صورت وجود) برای جلوگیری از Conflict
+    # حذف وب‌هوک قدیمی (در صورت وجود)
     try:
         requests.get(f"https://api.telegram.org/bot{BOT_TOKEN}/deleteWebhook")
         logger.info("Webhook deleted.")
@@ -619,6 +618,17 @@ def main():
     diagnose_gemini()
 
     app = Application.builder().token(BOT_TOKEN).build()
+
+    # callback برای راه‌اندازی scheduler بعد از شروع event loop
+    async def start_scheduler_callback(application):
+        from scheduler import init_scheduler, get_scheduler
+        init_scheduler()
+        scheduler = get_scheduler()
+        if not scheduler.running:
+            scheduler.start()
+            logger.info("⏰ Scheduler started.")
+
+    app.post_init = start_scheduler_callback
 
     # ثبت هندلرها
     app.add_handler(CommandHandler("start", start))
@@ -645,7 +655,6 @@ def main():
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, main_menu_handler))
     app.add_error_handler(error_handler)
 
-    start_scheduler()
     logger.info("🚀 ClinicOS bot started with full UX redesign and Gemini integration")
     app.run_polling()
 
