@@ -1,5 +1,5 @@
 from sqlalchemy import Column, Integer, String, Float, Boolean, DateTime, ForeignKey, Text, JSON, Index, Time
-from sqlalchemy.orm import declarative_base
+from sqlalchemy.orm import declarative_base, relationship
 from datetime import datetime
 
 Base = declarative_base()
@@ -19,7 +19,8 @@ class Staff(Base):
     clinic_id = Column(Integer, ForeignKey('clinics.id'))
     telegram_id = Column(Integer, unique=True)
     name = Column(String(200))
-    role = Column(String(50))
+    role = Column(String(50))   # owner, doctor, secretary
+    language = Column(String(10), default='fa')   # زبان ترجیحی کارمند
     invited_by = Column(Integer, ForeignKey('staff.id'), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
@@ -69,10 +70,6 @@ class Session(Base):
     requires_human = Column(Boolean, default=False)
     conversation_status = Column(String(20), default='active')
     last_activity = Column(DateTime, default=datetime.utcnow)
-    __table_args__ = (
-        Index('idx_session_patient_active', 'patient_id', 'is_active'),
-        Index('idx_session_last_activity', 'last_activity'),
-    )
 
 
 class RawMessage(Base):
@@ -398,7 +395,7 @@ class ObjectionLog(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
-# ========== مدل‌های Content Brain (اختیاری) ==========
+# ========== مدل‌های Content Brain (اختیاری - برای توسعه آینده) ==========
 class ContentAsset(Base):
     __tablename__ = 'content_assets'
     id = Column(Integer, primary_key=True)
