@@ -15,13 +15,12 @@ DATABASE_POOL_TIMEOUT = int(os.getenv("DATABASE_POOL_TIMEOUT", "30"))
 DATABASE_POOL_RECYCLE = int(os.getenv("DATABASE_POOL_RECYCLE", "3600"))
 DEBUG_MODE = os.getenv("DEBUG_MODE", "False").lower() == "true"
 
-# Groq API (جایگزین Cloudflare)
-GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
-
-# Legacy (برای سازگاری)
-CLOUDFLARE_API_TOKEN = os.getenv("CLOUDFLARE_API_TOKEN", "")
-CLOUDFLARE_ACCOUNT_ID = os.getenv("CLOUDFLARE_ACCOUNT_ID", "")
+# Google Gemini API
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+
+# (پشتیبانی از Groq و Cloudflare حذف شد)
+# GROQ_API_KEY = ...
+# CLOUDFLARE_...
 
 # Lead & Session
 LEAD_THRESHOLD = float(os.getenv("LEAD_THRESHOLD", "7.0"))
@@ -61,8 +60,8 @@ def validate_config():
         errors.append("BOT_TOKEN not set")
     if OWNER_TELEGRAM_ID == 0:
         errors.append("OWNER_TELEGRAM_ID not set")
-    if not GROQ_API_KEY:
-        errors.append("GROQ_API_KEY not set (Groq API required)")
+    if not GEMINI_API_KEY:
+        errors.append("GEMINI_API_KEY not set (Google Gemini required)")
     if errors:
         for err in errors:
             print(f"❌ {err}")
@@ -74,7 +73,7 @@ def get_config_summary():
         "bot_token_configured": bool(BOT_TOKEN),
         "owner_telegram_id": OWNER_TELEGRAM_ID,
         "database_url": DATABASE_URL.split("://")[0],
-        "groq_configured": bool(GROQ_API_KEY),
+        "gemini_configured": bool(GEMINI_API_KEY),
         "lead_threshold": LEAD_THRESHOLD,
         "session_hours": SESSION_HOURS,
         "max_recovery_attempts": MAX_RECOVERY_ATTEMPTS,
@@ -87,7 +86,7 @@ def get_config_summary():
 
 if __name__ == "__main__":
     print("=" * 50)
-    print("ClinicOS Configuration")
+    print("ClinicOS Configuration (Google Gemini)")
     print("=" * 50)
     if validate_config():
         for k, v in get_config_summary().items():
