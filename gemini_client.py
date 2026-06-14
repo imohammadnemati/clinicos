@@ -1,13 +1,13 @@
 """
-Production-grade Gemini client with dynamic model discovery, key type detection,
-fallback, and full diagnostics. Supports both AIza... and AQ... API keys.
-Handles empty responses gracefully.
+Gemini client with dynamic model discovery, fallback, and delayed validation.
+No test request is sent during initialization to avoid 429 errors.
 """
 
 import logging
 import asyncio
 import requests
 import json
+import random
 from typing import List, Optional
 from config import GEMINI_API_KEY, GEMINI_MODEL
 
@@ -25,7 +25,7 @@ class GeminiClient:
         self.working_model: Optional[str] = None
         self.key_type: str = "unknown"
         self._detect_key_type()
-        self._init_model()
+        self._init_model_discovery()  # فقط کشف مدل، بدون درخواست تست
 
     def _detect_key_type(self):
         if not self.api_key:
@@ -81,7 +81,8 @@ class GeminiClient:
         logger.warning(f"No preferred model. Using first: {first}")
         return first
 
-    def _init_model(self):
+    def _init_model_discovery(self):
+        """Only discover models, do NOT send test request to avoid 429."""
         if not self.api_key:
             raise ValueError("GEMINI_API_KEY not set")
 
@@ -91,31 +92,9 @@ class GeminiClient:
         selected = self._select_working_model(available)
         self.working_model = selected
         logger.info(f"Selected model: {self.working_model} (configured: {self.configured_model})")
-
-        # Quick validation with a minimal request
-        try:
-            test_url = GENERATE_URL.format(model=self.working_model)
-            test_payload = {
-                "contents": [{"parts": [{"text": "Test"}]}],
-                "generationConfig": {"maxOutputTokens": 1}
-            }
-            resp = requests.post(
-                test_url,
-                headers={"Content-Type": "application/json"},
-                json=test_payload,
-                params={"key": self.api_key},
-                timeout=5
-            )
-            if resp.status_code == 404:
-                logger.error(f"Model {self.working_model} returned 404 – check API key permissions.")
-                raise RuntimeError(f"Model {self.working_model} not accessible with this API key.")
-            resp.raise_for_status()
-        except Exception as e:
-            logger.error(f"Startup verification failed: {e}")
-            raise
+        logger.info("Gemini client initialized (validation will occur on first real request).")
 
     async def generate_content(self, prompt: str, temperature: float = 0.7, max_tokens: int = 500, max_retries: int = 5) -> str:
-        """Generate content with retry and robust response parsing."""
         if not self.working_model:
             raise RuntimeError("Gemini client not initialized.")
 
@@ -138,20 +117,17 @@ class GeminiClient:
                     timeout=30
                 )
                 if resp.status_code == 429:
-                    import random
                     wait = min(2 ** attempt + random.uniform(0, 2), 60)
                     logger.warning(f"Rate limited (429), retry {attempt} in {wait:.2f}s")
                     await asyncio.sleep(wait)
                     continue
                 resp.raise_for_status()
                 data = resp.json()
-
-                # Try to extract text from response
                 text = self._extract_response_text(data)
                 if text:
                     return text
                 else:
-                    # If empty, retry with increased max_tokens
+                    # اگر پاسخ خالی بود، با توکن بیشتر تلاش کن
                     if max_tokens < 1000:
                         logger.warning(f"Empty response, retrying with higher token limit (current {max_tokens})")
                         payload["generationConfig"]["maxOutputTokens"] = 1000
@@ -159,7 +135,6 @@ class GeminiClient:
                     else:
                         logger.error(f"Empty response even with high token limit. Full response: {json.dumps(data, indent=2)}")
                         return ""
-
             except Exception as e:
                 status = resp.status_code if resp is not None else "N/A"
                 logger.error(f"Gemini error (attempt {attempt}): Model={self.working_model}, status={status}, error={e}")
@@ -170,17 +145,14 @@ class GeminiClient:
         raise RuntimeError("Gemini request failed after maximum retries.")
 
     def _extract_response_text(self, data: dict) -> str:
-        """Safely extract text from Gemini response, handling missing parts."""
         try:
             candidate = data.get('candidates', [{}])[0]
             content = candidate.get('content', {})
             parts = content.get('parts', [])
             if parts and 'text' in parts[0]:
                 return parts[0]['text'].strip()
-            # If parts is missing but there is a 'text' field directly? (unlikely)
             if 'text' in content:
                 return content['text'].strip()
-            # Log the full structure for debugging
             logger.warning(f"Unexpected response structure: {json.dumps(data, indent=2)}")
             return ""
         except Exception as e:
@@ -188,7 +160,6 @@ class GeminiClient:
             return ""
 
     async def diagnose(self) -> dict:
-        """Run full diagnostics."""
         result = {
             "key_type": self.key_type,
             "configured_model": self.configured_model,
@@ -205,7 +176,7 @@ class GeminiClient:
             result["models_endpoint_response"] = resp.text[:500]
             if resp.status_code == 200:
                 result["auth_ok"] = True
-            # Test generate with a proper prompt and token limit
+            # تست واقعی با یک پرامپت ساده و توکن کافی
             test_result = await self.generate_content("Reply with the single word: OK", max_tokens=20)
             result["generate_ok"] = (test_result.strip().upper() == "OK")
         except Exception as e:
