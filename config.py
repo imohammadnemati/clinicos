@@ -14,8 +14,10 @@ DEBUG_MODE = os.getenv("DEBUG_MODE", "False").lower() == "true"
 
 # ---------- Google Gemini API ----------
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
-# مدل پیش‌فرض؛ در صورت عدم دسترسی، fallback خودکار انجام می‌شود
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+
+# ---------- (اختیاری) Groq API – در صورت استفاده ----------
+GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
 
 # ---------- Lead & Session ----------
 LEAD_THRESHOLD = float(os.getenv("LEAD_THRESHOLD", "7.0"))
@@ -49,7 +51,7 @@ READONLY_MODE = os.getenv("READONLY_MODE", "False").lower() == "true"
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 LOG_FILE_PATH = os.getenv("LOG_FILE_PATH", "logs/clinic_brain.log")
 
-# ---------- Validation ----------
+# ---------- اعتبارسنجی تنظیمات ----------
 def validate_config():
     errors = []
     if not BOT_TOKEN:
