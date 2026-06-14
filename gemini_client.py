@@ -1,5 +1,5 @@
 """
-Gemini client with dynamic model discovery, fallback, and delayed validation.
+Gemini client with dynamic model discovery, fallback, and robust response handling.
 No test request is sent during initialization to avoid 429 errors.
 """
 
@@ -25,7 +25,7 @@ class GeminiClient:
         self.working_model: Optional[str] = None
         self.key_type: str = "unknown"
         self._detect_key_type()
-        self._init_model_discovery()  # فقط کشف مدل، بدون درخواست تست
+        self._init_model_discovery()
 
     def _detect_key_type(self):
         if not self.api_key:
@@ -82,7 +82,6 @@ class GeminiClient:
         return first
 
     def _init_model_discovery(self):
-        """Only discover models, do NOT send test request to avoid 429."""
         if not self.api_key:
             raise ValueError("GEMINI_API_KEY not set")
 
@@ -94,7 +93,7 @@ class GeminiClient:
         logger.info(f"Selected model: {self.working_model} (configured: {self.configured_model})")
         logger.info("Gemini client initialized (validation will occur on first real request).")
 
-    async def generate_content(self, prompt: str, temperature: float = 0.7, max_tokens: int = 500, max_retries: int = 5) -> str:
+    async def generate_content(self, prompt: str, temperature: float = 0.7, max_tokens: int = 1000, max_retries: int = 5) -> str:
         if not self.working_model:
             raise RuntimeError("Gemini client not initialized.")
 
@@ -123,18 +122,20 @@ class GeminiClient:
                     continue
                 resp.raise_for_status()
                 data = resp.json()
-                text = self._extract_response_text(data)
+                text = self._extract_response_text(data, max_tokens)
                 if text:
                     return text
+                # اگر پاسخ خالی بود و max_tokens کمتر از 2000 است، افزایش بده
+                if max_tokens < 2000:
+                    new_tokens = min(max_tokens * 2, 2000)
+                    logger.warning(f"Empty response, retrying with higher token limit ({new_tokens})")
+                    payload["generationConfig"]["maxOutputTokens"] = new_tokens
+                    max_tokens = new_tokens
+                    continue
                 else:
-                    # اگر پاسخ خالی بود، با توکن بیشتر تلاش کن
-                    if max_tokens < 1000:
-                        logger.warning(f"Empty response, retrying with higher token limit (current {max_tokens})")
-                        payload["generationConfig"]["maxOutputTokens"] = 1000
-                        continue
-                    else:
-                        logger.error(f"Empty response even with high token limit. Full response: {json.dumps(data, indent=2)}")
-                        return ""
+                    logger.error(f"Empty response even with high token limit. Full response: {json.dumps(data, indent=2)}")
+                    return ""
+
             except Exception as e:
                 status = resp.status_code if resp is not None else "N/A"
                 logger.error(f"Gemini error (attempt {attempt}): Model={self.working_model}, status={status}, error={e}")
@@ -144,17 +145,23 @@ class GeminiClient:
 
         raise RuntimeError("Gemini request failed after maximum retries.")
 
-    def _extract_response_text(self, data: dict) -> str:
+    def _extract_response_text(self, data: dict, current_max_tokens: int) -> str:
         try:
             candidate = data.get('candidates', [{}])[0]
+            finish_reason = candidate.get('finishReason')
             content = candidate.get('content', {})
             parts = content.get('parts', [])
+
             if parts and 'text' in parts[0]:
                 return parts[0]['text'].strip()
-            if 'text' in content:
+            elif finish_reason == "MAX_TOKENS":
+                logger.warning(f"Response truncated due to MAX_TOKENS (current limit {current_max_tokens})")
+                return ""
+            elif 'text' in content:
                 return content['text'].strip()
-            logger.warning(f"Unexpected response structure: {json.dumps(data, indent=2)}")
-            return ""
+            else:
+                logger.warning(f"Unexpected response structure: {json.dumps(data, indent=2)}")
+                return ""
         except Exception as e:
             logger.error(f"Error extracting text: {e}")
             return ""
@@ -176,8 +183,7 @@ class GeminiClient:
             result["models_endpoint_response"] = resp.text[:500]
             if resp.status_code == 200:
                 result["auth_ok"] = True
-            # تست واقعی با یک پرامپت ساده و توکن کافی
-            test_result = await self.generate_content("Reply with the single word: OK", max_tokens=20)
+            test_result = await self.generate_content("Reply with the single word: OK", max_tokens=50)
             result["generate_ok"] = (test_result.strip().upper() == "OK")
         except Exception as e:
             result["error"] = str(e)
