@@ -564,17 +564,40 @@ async def show_patient_appointments(update: Update, context: ContextTypes.DEFAUL
     finally:
         db.close()
 
-# ========== Gemini Test Command ==========
-async def test_gemini(update: Update, context: ContextTypes.DEFAULT_TYPE):
+# ========== Gemini Diagnostic Command ==========
+async def diagnose_gemini(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """دستور برای عیب‌یابی اتصال به Gemini"""
     try:
         client = get_gemini_client()
-        result = await client.test_connection_async()
-        if result:
-            await update.message.reply_text("✅ تست Gemini: موفق\nمدل فعال: " + client.working_model)
-        else:
-            await update.message.reply_text("❌ تست Gemini: ناموفق. لطفاً لاگ‌ها را بررسی کنید.")
+        diag = await client.diagnose()
+        msg = (
+            f"🔍 *Gemini Diagnostics*\n\n"
+            f"Key type: `{diag['key_type']}`\n"
+            f"Configured model: `{diag['configured_model']}`\n"
+            f"Selected model: `{diag['selected_model']}`\n"
+            f"Models endpoint status: `{diag['models_endpoint_status']}`\n"
+            f"Auth OK: `{diag['auth_ok']}`\n"
+            f"Generate OK: `{diag['generate_ok']}`\n"
+        )
+        if diag.get('error'):
+            msg += f"Error: `{diag['error']}`\n"
+        await update.message.reply_text(msg, parse_mode='Markdown')
     except Exception as e:
-        await update.message.reply_text(f"❌ خطا در تست Gemini: {str(e)}")
+        await update.message.reply_text(f"❌ Diagnostics failed: {e}")
+
+# ========== Gemini Startup Diagnostic ==========
+def startup_gemini_diagnostic():
+    """اجرای دیاگنوستیک در زمان راه‌اندازی و لاگ کردن نتایج"""
+    try:
+        client = get_gemini_client()
+        logger.info("=== Gemini Startup Diagnostic ===")
+        logger.info(f"Key type: {client.key_type}")
+        logger.info(f"Configured model: {client.configured_model}")
+        logger.info(f"Selected model: {client.working_model}")
+        logger.info("Gemini client initialized successfully.")
+    except Exception as e:
+        logger.error(f"FATAL: Gemini initialization failed – {e}")
+        raise  # مانع از شروع بات می‌شود
 
 # ========== Error Handler ==========
 async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -586,7 +609,7 @@ async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 def main():
     init_db()
 
-    # Delete webhook to avoid conflict
+    # حذف وب‌هوک برای جلوگیری از conflict
     for attempt in range(5):
         try:
             resp = requests.get(f"https://api.telegram.org/bot{BOT_TOKEN}/deleteWebhook")
@@ -601,10 +624,13 @@ def main():
     else:
         logger.error("Could not delete webhook after 5 attempts")
 
+    # اجرای دیاگنوستیک Gemini در زمان راه‌اندازی (اگر خطا داشته باشد، بات استارت نمی‌خورد)
+    startup_gemini_diagnostic()
+
     app = Application.builder().token(BOT_TOKEN).build()
 
     async def startup(application):
-        await asyncio.sleep(3)  # extra delay to let webhook fully close
+        await asyncio.sleep(3)  # تأخیر اضافی برای اطمینان از بسته شدن کامل وب‌هوک
         from scheduler import init_scheduler, get_scheduler
         init_scheduler()
         scheduler = get_scheduler()
@@ -614,14 +640,16 @@ def main():
 
     app.post_init = startup
 
-    # Register handlers
+    # ثبت هندلرها
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("test_gemini", test_gemini))
+    app.add_handler(CommandHandler("diagnose_gemini", diagnose_gemini))
     app.add_handler(CallbackQueryHandler(language_callback, pattern='^lang_'))
     app.add_handler(ConversationHandler(
         entry_points=[CallbackQueryHandler(staff_menu_callback, pattern='^staff_add_')],
-        states={STAFF_ID: [MessageHandler(filters.TEXT & ~filters.COMMAND, add_staff_id)],
-                STAFF_CONFIRM: [MessageHandler(filters.TEXT & ~filters.COMMAND, add_staff_confirm)]},
+        states={
+            STAFF_ID: [MessageHandler(filters.TEXT & ~filters.COMMAND, add_staff_id)],
+            STAFF_CONFIRM: [MessageHandler(filters.TEXT & ~filters.COMMAND, add_staff_confirm)]
+        },
         fallbacks=[],
     ))
     app.add_handler(CallbackQueryHandler(staff_menu_callback, pattern='^staff_'))
@@ -634,7 +662,7 @@ def main():
             APPT_TIME: [MessageHandler(filters.TEXT & ~filters.COMMAND, appointment_time)],
             APPT_CONFIRM: [CallbackQueryHandler(appointment_confirm_callback, pattern='^appt_confirm_')],
         },
-        fallbacks=[CommandHandler('cancel', lambda u,c: u.message.reply_text("Cancelled"))],
+        fallbacks=[CommandHandler('cancel', lambda u, c: u.message.reply_text("Cancelled"))],
     ))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, main_menu_handler))
     app.add_error_handler(error_handler)
