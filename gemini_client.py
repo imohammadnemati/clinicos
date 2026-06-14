@@ -116,9 +116,8 @@ class GeminiClient:
                     self._last_request_time = time.monotonic()
                 
                 if resp.status_code == 429:
-    logger.error("========== GOOGLE 429 RESPONSE ==========")
-    logger.error(resp.text)
-    logger.error("=========================================")
+                    logger.error("========== GOOGLE 429 RESPONSE ==========")
+                    logger.error(resp.text)
                     if attempt == max_retries:
                         resp.raise_for_status()
                     wait = min(2 ** attempt + random.uniform(1, 3), 60)
