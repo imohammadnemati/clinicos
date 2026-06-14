@@ -8,7 +8,7 @@ import asyncio
 import requests
 import json
 import random
-from typing import List, Optional
+from typing import List, Optional, Tuple
 from config import GEMINI_API_KEY, GEMINI_MODEL
 
 logger = logging.getLogger(__name__)
@@ -99,9 +99,17 @@ class GeminiClient:
 
         url = GENERATE_URL.format(model=self.working_model)
         headers = {"Content-Type": "application/json"}
+        
+        # PATCH: Added safetySettings to prevent API from blocking medical queries
         payload = {
             "contents": [{"parts": [{"text": prompt}]}],
             "generationConfig": {"temperature": temperature, "maxOutputTokens": max_tokens},
+            "safetySettings": [
+                {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
+                {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
+                {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
+                {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"}
+            ]
         }
 
         resp = None
@@ -115,56 +123,75 @@ class GeminiClient:
                     params={"key": self.api_key},
                     timeout=30
                 )
+                
+                # PATCH: Do not continue if it's the last attempt
                 if resp.status_code == 429:
+                    if attempt == max_retries:
+                        resp.raise_for_status()
                     wait = min(2 ** attempt + random.uniform(0, 2), 60)
                     logger.warning(f"Rate limited (429), retry {attempt} in {wait:.2f}s")
                     await asyncio.sleep(wait)
                     continue
+                    
                 resp.raise_for_status()
                 data = resp.json()
-                text = self._extract_response_text(data, max_tokens)
+                
+                # PATCH: Extract both text and the actual finish reason
+                text, finish_reason = self._extract_response_text(data, max_tokens)
+                
                 if text:
                     return text
-                # اگر پاسخ خالی بود و max_tokens کمتر از 2000 است، افزایش بده
-                if max_tokens < 2000:
+                    
+                # PATCH: Context-aware retry logic
+                if finish_reason == "SAFETY":
+                    logger.error("Gemini rejected the prompt due to Safety settings despite BLOCK_NONE override.")
+                    return "⚠️ این درخواست به دلایل امنیتی توسط هوش مصنوعی پردازش نشد."
+                    
+                if finish_reason == "MAX_TOKENS" or max_tokens < 2000:
+                    if attempt == max_retries:
+                         logger.error(f"Empty response even with high token limit. Full response: {json.dumps(data, indent=2)}")
+                         return ""
                     new_tokens = min(max_tokens * 2, 2000)
-                    logger.warning(f"Empty response, retrying with higher token limit ({new_tokens})")
+                    logger.warning(f"Empty or truncated response, retrying with higher token limit ({new_tokens})")
                     payload["generationConfig"]["maxOutputTokens"] = new_tokens
                     max_tokens = new_tokens
                     continue
                 else:
-                    logger.error(f"Empty response even with high token limit. Full response: {json.dumps(data, indent=2)}")
+                    logger.error(f"Empty response unhandled. Finish Reason: {finish_reason}. Full response: {json.dumps(data, indent=2)}")
                     return ""
 
             except Exception as e:
                 status = resp.status_code if resp is not None else "N/A"
                 logger.error(f"Gemini error (attempt {attempt}): Model={self.working_model}, status={status}, error={e}")
                 if attempt == max_retries:
+                    # PATCH: Re-raise the original exact error instead of masking it with RuntimeError
                     raise
                 await asyncio.sleep(2 ** attempt)
 
-        raise RuntimeError("Gemini request failed after maximum retries.")
+        # Fallback if loop breaks unnaturally
+        raise RuntimeError(f"Gemini request failed after {max_retries} retries. Check upstream logs.")
 
-    def _extract_response_text(self, data: dict, current_max_tokens: int) -> str:
+    def _extract_response_text(self, data: dict, current_max_tokens: int) -> Tuple[str, str]:
+        # PATCH: Return finish_reason so the main loop can make intelligent decisions
         try:
             candidate = data.get('candidates', [{}])[0]
-            finish_reason = candidate.get('finishReason')
+            finish_reason = candidate.get('finishReason', 'UNKNOWN')
             content = candidate.get('content', {})
             parts = content.get('parts', [])
 
             if parts and 'text' in parts[0]:
-                return parts[0]['text'].strip()
+                return parts[0]['text'].strip(), finish_reason
             elif finish_reason == "MAX_TOKENS":
                 logger.warning(f"Response truncated due to MAX_TOKENS (current limit {current_max_tokens})")
-                return ""
+                return "", finish_reason
             elif 'text' in content:
-                return content['text'].strip()
+                return content['text'].strip(), finish_reason
             else:
-                logger.warning(f"Unexpected response structure: {json.dumps(data, indent=2)}")
-                return ""
+                logger.warning(f"Unexpected response structure or blocked. FinishReason: {finish_reason}")
+                return "", finish_reason
         except Exception as e:
             logger.error(f"Error extracting text: {e}")
-            return ""
+            return "", "ERROR"
 
     async def diagnose(self) -> dict:
         result = {
