@@ -2,14 +2,12 @@ import logging
 import requests
 import asyncio
 import random
-import json
 from config import GEMINI_API_KEY
 
 logger = logging.getLogger(__name__)
 
 BASE_URL = "https://generativelanguage.googleapis.com/v1beta"
-# استفاده از مدل پایدار gemini-1.5-flash به جای gemini-2.5-flash
-MODEL_NAME = "gemini-1.5-flash"
+MODEL_NAME = "gemini-1.5-flash"  # یا "gemini-2.0-flash" در صورت نیاز
 GENERATE_URL = f"{BASE_URL}/models/{MODEL_NAME}:generateContent"
 
 class GeminiClient:
@@ -26,7 +24,7 @@ class GeminiClient:
             "generationConfig": {"temperature": temperature, "maxOutputTokens": max_tokens},
         }
 
-        for attempt in range(1, 11):
+        for attempt in range(1, 6):
             try:
                 resp = await asyncio.to_thread(
                     requests.post, url,
@@ -36,31 +34,28 @@ class GeminiClient:
                     timeout=30
                 )
                 if resp.status_code == 429:
-                    wait = min((2 ** attempt) + random.uniform(0, 2), 60)
+                    wait = min((2 ** attempt) + random.uniform(0, 2), 30)
                     logger.warning(f"Rate limit (429), retry {attempt} in {wait:.2f}s")
                     await asyncio.sleep(wait)
                     continue
+                if resp.status_code == 404:
+                    logger.error(f"Model {MODEL_NAME} not found. Check your API key and model name.")
+                    raise Exception(f"Model not found: {MODEL_NAME}")
                 resp.raise_for_status()
                 data = resp.json()
-                # پیمایش امن در پاسخ
                 try:
-                    text = data['candidates'][0]['content']['parts'][0]['text']
-                    return text.strip()
-                except (KeyError, IndexError, TypeError) as e:
-                    logger.error(f"Unexpected response structure: {json.dumps(data, indent=2)}")
-                    # Fallback: اگر ساختار متفاوت بود، خطای واضح بده
-                    if 'error' in data:
-                        raise Exception(f"API error: {data['error']['message']}")
-                    raise Exception(f"Response missing 'parts' key: {e}")
+                    return data['candidates'][0]['content']['parts'][0]['text'].strip()
+                except (KeyError, IndexError) as e:
+                    logger.error(f"Unexpected response: {data}")
+                    raise Exception(f"Response structure error: {e}")
             except Exception as e:
                 logger.error(f"Gemini error (attempt {attempt}): {e}")
-                if attempt >= 10:
+                if attempt >= 5:
                     raise
                 await asyncio.sleep(2 ** attempt)
-        raise RuntimeError("Gemini request failed after 10 attempts")
+        raise RuntimeError("Gemini request failed after 5 attempts")
 
     async def test_connection_async(self) -> bool:
-        """Test the connection with a simple prompt."""
         try:
             result = await self.generate_content("Reply with OK", max_tokens=5)
             return result.strip().upper() == "OK"
@@ -69,7 +64,6 @@ class GeminiClient:
             return False
 
     def test_connection(self) -> bool:
-        """Synchronous version of test_connection_async (for startup)."""
         try:
             return asyncio.run(self.test_connection_async())
         except Exception:
