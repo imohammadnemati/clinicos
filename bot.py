@@ -19,7 +19,9 @@ from models import (
 from patient_agent import process_patient_message
 from appointment_engine import create_appointment_request
 from kpi_engine import get_kpi_summary
-from gemini_client import get_gemini_client
+
+# ایمپورت روتر جدید به جای کلاینت قدیمی جمینای
+from llm.router import get_llm_router
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -224,7 +226,15 @@ async def main_menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         db.close()
 
 # ========== Appointment Wizard ==========
-async def start_appointment_booking(update: Update, context: ContextTypes.DEFAULT_TYPE, clinic_id: int):
+async def start_appointment_booking(update: Update, context: ContextTypes.DEFAULT_TYPE, clinic_id: int = None):
+    # مقداردهی به clinic_id در صورتی که تابع توسط ConversationHandler (بدون آرگومان سوم) صدا زده شود
+    if clinic_id is None:
+        db = SessionLocal()
+        try:
+            clinic_id = get_user_clinic_id(update.effective_user.id, db)
+        finally:
+            db.close()
+
     keyboard = [
         [InlineKeyboardButton("بوتاکس", callback_data="appt_service_botox")],
         [InlineKeyboardButton("فیلر", callback_data="appt_service_filler")],
@@ -564,40 +574,33 @@ async def show_patient_appointments(update: Update, context: ContextTypes.DEFAUL
     finally:
         db.close()
 
-# ========== Gemini Diagnostic Command ==========
-async def diagnose_gemini(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """دستور برای عیب‌یابی اتصال به Gemini"""
+# ========== LLM Router Diagnostic Command ==========
+async def diagnose_llm(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """دستور برای عیب‌یابی وضعیت در دسترس بودن Provider ها"""
     try:
-        client = get_gemini_client()
-        diag = await client.diagnose()
-        msg = (
-            f"🔍 *Gemini Diagnostics*\n\n"
-            f"Key type: `{diag['key_type']}`\n"
-            f"Configured model: `{diag['configured_model']}`\n"
-            f"Selected model: `{diag['selected_model']}`\n"
-            f"Models endpoint status: `{diag['models_endpoint_status']}`\n"
-            f"Auth OK: `{diag['auth_ok']}`\n"
-            f"Generate OK: `{diag['generate_ok']}`\n"
-        )
-        if diag.get('error'):
-            msg += f"Error: `{diag['error']}`\n"
+        router = get_llm_router()
+        msg = "🔍 *LLM Router Health Check*\n\n"
+        for name, data in router.providers.items():
+            status = "🟢 Ready" if data['cooldown_until'] < time.time() else "🔴 In Cooldown"
+            msg += f"🔹 *{data['name']}*\n   Score: `{data['score']}`\n   Status: {status}\n\n"
+            
         await update.message.reply_text(msg, parse_mode='Markdown')
     except Exception as e:
         await update.message.reply_text(f"❌ Diagnostics failed: {e}")
 
-# ========== Gemini Startup Diagnostic ==========
-def startup_gemini_diagnostic():
-    """اجرای دیاگنوستیک در زمان راه‌اندازی و لاگ کردن نتایج"""
+# ========== LLM Startup Diagnostic ==========
+def startup_llm_diagnostic():
+    """لاگ کردن وضعیت Provider ها در زمان راه‌اندازی سرور"""
     try:
-        client = get_gemini_client()
-        logger.info("=== Gemini Startup Diagnostic ===")
-        logger.info(f"Key type: {client.key_type}")
-        logger.info(f"Configured model: {client.configured_model}")
-        logger.info(f"Selected model: {client.working_model}")
-        logger.info("Gemini client initialized successfully.")
+        router = get_llm_router()
+        logger.info("=== LLM Router Startup ===")
+        if not router.providers:
+            logger.error("FATAL: No LLM Providers loaded! Check API Keys.")
+        for key, data in router.providers.items():
+            logger.info(f"Loaded Provider: {data['name']} (Initial Score: {data['score']})")
     except Exception as e:
-        logger.error(f"FATAL: Gemini initialization failed – {e}")
-        raise  # مانع از شروع بات می‌شود
+        logger.error(f"LLM initialization failed: {e}")
+        raise  # مانع از شروع بات در صورت خطای حیاتی می‌شود
 
 # ========== Error Handler ==========
 async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -624,8 +627,8 @@ def main():
     else:
         logger.error("Could not delete webhook after 5 attempts")
 
-    # اجرای دیاگنوستیک Gemini در زمان راه‌اندازی (اگر خطا داشته باشد، بات استارت نمی‌خورد)
-    startup_gemini_diagnostic()
+    # اجرای دیاگنوستیک LLM در زمان راه‌اندازی
+    startup_llm_diagnostic()
 
     app = Application.builder().token(BOT_TOKEN).build()
 
@@ -642,7 +645,7 @@ def main():
 
     # ثبت هندلرها
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("diagnose_gemini", diagnose_gemini))
+    app.add_handler(CommandHandler("diagnose_llm", diagnose_llm))  # تغییر نام دستور به LLM
     app.add_handler(CallbackQueryHandler(language_callback, pattern='^lang_'))
     app.add_handler(ConversationHandler(
         entry_points=[CallbackQueryHandler(staff_menu_callback, pattern='^staff_add_')],
@@ -667,7 +670,7 @@ def main():
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, main_menu_handler))
     app.add_error_handler(error_handler)
 
-    logger.info("🚀 ClinicOS bot started with full UX redesign and Gemini integration")
+    logger.info("🚀 ClinicOS bot started with full UX redesign and Multi-LLM Gateway")
     app.run_polling()
 
 if __name__ == "__main__":
