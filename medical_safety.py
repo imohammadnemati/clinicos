@@ -1,70 +1,124 @@
 """
-ماژول ایمنی پزشکی (Medical Safety Layer) متصل به LLM Router
-تشخیص سطح ریسک بر اساس متن پیام بیمار
+Medical Safety Module – Keyword‑based risk detection.
+No LLM calls, no external API dependencies.
+Used to flag potentially dangerous medical questions before they reach the LLM router.
 """
 
-import logging
+import re
 from typing import Tuple, Optional
-from llm.router import get_llm_router
 
-logger = logging.getLogger(__name__)
+# ========== Risk Keyword Lists ==========
+# High risk – immediate medical attention required
+HIGH_RISK_KEYWORDS = [
+    'بارداری', 'باردار', 'حامله', 'شیردهی',
+    'دیابت', 'فشار خون', 'صرع', 'میگرن شدید',
+    'خونریزی', 'عفونت شدید', 'تب بالا', 'تشنج',
+    'بیهوشی', 'حساسیت شدید', 'واکنش آلرژیک',
+    'تنگی نفس', 'ایست قلبی', 'شوک آنافیلاکتیک'
+]
 
-RISK_PROMPT = """
-You are a medical safety classifier for a cosmetic clinic. Analyze the patient message and return ONLY the risk level (one word) from the following options:
-- emergency: life-threatening symptoms (difficulty breathing, fainting, severe allergic reaction)
-- high: pregnancy, breastfeeding, diabetes, epilepsy, blood thinners, serious conditions
-- medium: medications, mild allergies, chronic stable conditions
-- low: minor side effects (bruising, mild swelling, itching)
-- none: no medical risk (general questions about prices, appointments, etc.)
+# Medium risk – requires doctor review, but not emergency
+MEDIUM_RISK_KEYWORDS = [
+    'دارو', 'قرص', 'آسپرین', 'وارفارین', 'رقیق کننده خون',
+    'واکسین', 'واکسن', 'حساسیت', 'آلرژی',
+    'بیماری خودایمنی', 'کم کاری تیروئید', 'پرکاری تیروئید'
+]
 
-Patient message: {message}
+# Low risk – minor side effects, informational
+LOW_RISK_KEYWORDS = [
+    'کبودی', 'قرمزی', 'تورم خفیف', 'درد خفیف',
+    'خارش', 'پوسته پوسته شدن'
+]
 
-Risk level (emergency/high/medium/low/none):
-"""
-
-async def check_medical_risk(text: str, use_llm: bool = True) -> Tuple[bool, Optional[str]]:
-    if not text or not use_llm:
-        return False, None
-
-    prompt = RISK_PROMPT.format(message=text)
-    router = get_llm_router()
+# ========== Core Functions ==========
+def keyword_risk(text: str) -> str:
+    """
+    Detect risk level based on keywords.
+    Returns: 'emergency', 'high', 'medium', 'low', or 'none'
+    """
+    if not text:
+        return 'none'
+    text_lower = text.lower()
     
-    try:
-        # استفاده از روتر به جای اتصال مستقیم به جمینای
-        risk_level = await router.generate(prompt, max_tokens=10)
-        risk_level = risk_level.strip().lower()
-        
-        valid_levels = ['emergency', 'high', 'medium', 'low', 'none']
-        if risk_level not in valid_levels:
-            logger.warning(f"خروجی نامعتبر از LLM Router: {risk_level}")
-            risk_level = 'none'
-            
-        if risk_level == 'none':
-            return False, None
-            
-        return True, risk_level
-        
-    except Exception as e:
-        logger.error(f"خطا در تشخیص ریسک پزشکی (همه Providerها قطع هستند): {e}")
+    # Emergency keywords (immediate life‑threatening)
+    emergency_keywords = ['تنگی نفس', 'بیهوش', 'ایست قلبی', 'شوک آنافیلاکتیک', 'خونریزی شدید']
+    for kw in emergency_keywords:
+        if kw in text_lower:
+            return 'emergency'
+    
+    for kw in HIGH_RISK_KEYWORDS:
+        if kw in text_lower:
+            return 'high'
+    
+    for kw in MEDIUM_RISK_KEYWORDS:
+        if kw in text_lower:
+            return 'medium'
+    
+    for kw in LOW_RISK_KEYWORDS:
+        if kw in text_lower:
+            return 'low'
+    
+    return 'none'
+
+
+async def check_medical_risk(text: str, use_llm: bool = False) -> Tuple[bool, Optional[str]]:
+    """
+    Main risk detection function (synchronous, keyword‑only).
+    Args:
+        text: Patient message
+        use_llm: Ignored, kept for compatibility with previous code.
+    Returns:
+        (risk_detected, risk_level) where risk_level is one of:
+        'emergency', 'high', 'medium', 'low', or None if no risk.
+    """
+    risk = keyword_risk(text)
+    if risk == 'none':
         return False, None
+    return True, risk
+
 
 def get_risk_message(risk_level: str, lang: str = 'fa') -> str:
+    """
+    Return a user‑friendly message based on risk level and language.
+    """
     messages = {
         'emergency': {
-            'fa': "🚨 این وضعیت نیاز به اقدام فوری پزشکی دارد. لطفاً فوراً با اورژانس تماس بگیرید یا به نزدیک‌ترین مرکز درمانی مراجعه کنید.",
-            'en': "🚨 This situation requires immediate medical attention. Please call emergency services or go to the nearest hospital."
+            'fa': "🚨 شرایط اورژانسی! لطفاً فوراً با اورژانس تماس بگیرید یا به نزدیک‌ترین مرکز درمانی مراجعه کنید.",
+            'en': "🚨 Emergency situation! Please call emergency services or go to the nearest hospital immediately.",
+            'ar': "🚨 حالة طارئة! يرجى الاتصال بخدمات الطوارئ أو الذهاب إلى أقرب مستشفى فوراً."
         },
         'high': {
-            'fa': "⚠️ برای پاسخ به این سوال، نیاز به بررسی پزشک دارید. لطفاً با کلینیک تماس بگیرید یا از منشی بخواهید پیام شما را به پزشک منتقل کند.",
-            'en': "⚠️ This question requires a doctor's review. Please contact the clinic or ask the secretary to forward your message."
+            'fa': "⚠️ برای پاسخ به این سوال نیاز به بررسی پزشک دارید. لطفاً با کلینیک تماس بگیرید یا از منشی بخواهید پیام شما را به پزشک منتقل کند.",
+            'en': "⚠️ This question requires a doctor's review. Please contact the clinic or ask the secretary to forward your message.",
+            'ar': "⚠️ هذا السؤال يحتاج إلى مراجعة الطبيب. يرجى الاتصال بالعيادة أو طلب من السكرتير نقل رسالتك."
         },
         'medium': {
-            'fa': "ℹ️ این سوال نیاز به بررسی دقیق‌تری دارد. پیشنهاد می‌کنم با پزشک خود مشورت کنید یا از طریق تماس تلفنی با کلینیک پیگیری نمایید.",
-            'en': "ℹ️ This question needs more careful review. I suggest consulting your doctor or following up with the clinic by phone."
+            'fa': "ℹ️ بهتر است با پزشک خود مشورت کنید. می‌توانید یک وقت مشاوره رایگان بگیرید.",
+            'en': "ℹ️ It's better to consult your doctor. You can book a free consultation.",
+            'ar': "ℹ️ من الأفضل استشارة طبيبك. يمكنك حجز استشارة مجانية."
         },
         'low': {
             'fa': "✨ عوارض خفیف معمولاً طبیعی هستند. اما اگر شدت گرفت یا طولانی شد، حتماً با پزشک مشورت کنید.",
-            'en': "✨ Mild side effects are usually normal. But if they become severe or prolonged, consult your doctor."
+            'en': "✨ Mild side effects are usually normal. But if they become severe or prolonged, consult your doctor.",
+            'ar': "✨ الآثار الجانبية الخفيفة طبيعية عادة. ولكن إذا أصبحت شديدة أو طويلة، استشر طبيبك."
         }
     }
-    return messages.get(risk_level, {}).get(lang, messages['high']['fa'])
+    return messages.get(risk_level, {}).get(lang, messages.get('high', {}).get('fa', "Please consult a doctor."))
+
+
+# Optional test function (not used in production)
+if __name__ == "__main__":
+    import asyncio
+    async def test():
+        test_texts = [
+            "قیمت بوتاکس چنده؟",
+            "من باردارم، می‌تونم فیلر بزنم؟",
+            "بعد از تزریق صورتم داغ شده",
+            "تنگی نفس دارم",
+            "قرص آسپرین مصرف می‌کنم"
+        ]
+        for t in test_texts:
+            has, level = await check_medical_risk(t)
+            print(f"Text: {t}\nRisk: {level if has else 'none'}\n{'-'*40}")
+    
+    asyncio.run(test())
