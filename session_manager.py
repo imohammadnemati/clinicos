@@ -1,6 +1,7 @@
 """
-ماژول مدیریت جلسات (Session Manager)
-این ماژول مسئول ایجاد، نگهداری و بستن جلسات مکالمه با بیماران است.
+Session Manager – Manages conversation sessions between patients and the bot.
+Handles session creation, activity tracking, session closure, and status queries.
+No LLM dependencies.
 """
 
 from datetime import datetime, timedelta
@@ -15,40 +16,38 @@ logger = logging.getLogger(__name__)
 
 def get_or_create_session(clinic_id: int, patient_id: int) -> int:
     """
-    دریافت جلسه فعال موجود یا ایجاد جلسه جدید برای بیمار
-    منطق: جلسه فعال بر اساس last_activity (نه start_time) تشخیص داده می‌شود.
+    Retrieve an active session for the patient, or create a new one.
+    A session is considered active if its last_activity is within SESSION_HOURS.
+    Returns the session ID.
     """
     db = SessionLocal()
     now = datetime.utcnow()
     cutoff = now - timedelta(hours=SESSION_HOURS)
 
     try:
-        # جستجوی جلسه فعال با شرط last_activity > cutoff
-        active_session = db.query(Session).filter(
+        # Try to find an active session (based on last_activity)
+        active = db.query(Session).filter(
             Session.clinic_id == clinic_id,
             Session.patient_id == patient_id,
             Session.is_active == True,
             Session.last_activity > cutoff
         ).first()
 
-        if active_session:
-            # به‌روزرسانی زمان آخرین فعالیت
-            active_session.last_activity = now
+        if active:
+            # Update last_activity to now
+            active.last_activity = now
             db.commit()
-            logger.debug(f"جلسه فعال موجود برای بیمار {patient_id}: {active_session.id}")
-            return active_session.id
+            logger.debug(f"Active session found for patient {patient_id}: {active.id}")
+            return active.id
 
-        # بستن جلسات قدیمی و غیرفعال (در صورت وجود)
+        # Close any old sessions that are still marked active
         db.query(Session).filter(
             Session.clinic_id == clinic_id,
             Session.patient_id == patient_id,
             Session.is_active == True
-        ).update({
-            "is_active": False,
-            "end_time": now
-        })
+        ).update({"is_active": False, "end_time": now})
 
-        # ایجاد جلسه جدید
+        # Create new session
         new_session = Session(
             clinic_id=clinic_id,
             patient_id=patient_id,
@@ -61,11 +60,10 @@ def get_or_create_session(clinic_id: int, patient_id: int) -> int:
         db.add(new_session)
         db.commit()
         session_id = new_session.id
-        logger.info(f"جلسه جدید برای بیمار {patient_id} ایجاد شد: {session_id}")
+        logger.info(f"New session created for patient {patient_id}: {session_id}")
         return session_id
-
     except Exception as e:
-        logger.error(f"خطا در ایجاد/دریافت جلسه برای بیمار {patient_id}: {e}")
+        logger.error(f"Error in get_or_create_session for patient {patient_id}: {e}")
         db.rollback()
         raise
     finally:
@@ -74,7 +72,8 @@ def get_or_create_session(clinic_id: int, patient_id: int) -> int:
 
 def update_session_activity(session_id: int) -> bool:
     """
-    به‌روزرسانی زمان آخرین فعالیت جلسه
+    Update the last_activity timestamp of a session.
+    Returns True if successful, False otherwise.
     """
     db = SessionLocal()
     try:
@@ -82,12 +81,10 @@ def update_session_activity(session_id: int) -> bool:
         if session:
             session.last_activity = datetime.utcnow()
             db.commit()
-            logger.debug(f"زمان آخرین فعالیت جلسه {session_id} به‌روزرسانی شد.")
             return True
-        logger.warning(f"جلسه {session_id} یافت نشد.")
         return False
     except Exception as e:
-        logger.error(f"خطا در به‌روزرسانی فعالیت جلسه {session_id}: {e}")
+        logger.error(f"Error updating activity for session {session_id}: {e}")
         db.rollback()
         return False
     finally:
@@ -96,7 +93,8 @@ def update_session_activity(session_id: int) -> bool:
 
 def close_session(session_id: int) -> bool:
     """
-    بستن جلسه (غیرفعال کردن)
+    Close a session (set is_active=False, record end_time).
+    Returns True on success.
     """
     db = SessionLocal()
     now = datetime.utcnow()
@@ -107,12 +105,12 @@ def close_session(session_id: int) -> bool:
         })
         db.commit()
         if result:
-            logger.info(f"جلسه {session_id} بسته شد.")
+            logger.info(f"Session {session_id} closed.")
             return True
-        logger.warning(f"جلسه {session_id} یافت نشد.")
+        logger.warning(f"Session {session_id} not found.")
         return False
     except Exception as e:
-        logger.error(f"خطا در بستن جلسه {session_id}: {e}")
+        logger.error(f"Error closing session {session_id}: {e}")
         db.rollback()
         return False
     finally:
@@ -121,7 +119,7 @@ def close_session(session_id: int) -> bool:
 
 def set_session_requires_human(session_id: int, requires_human: bool = True) -> bool:
     """
-    تنظیم وضعیت نیاز به مداخله انسانی در جلسه
+    Mark a session as needing human intervention.
     """
     db = SessionLocal()
     try:
@@ -132,7 +130,7 @@ def set_session_requires_human(session_id: int, requires_human: bool = True) -> 
         db.commit()
         return result > 0
     except Exception as e:
-        logger.error(f"خطا در تنظیم human handoff جلسه {session_id}: {e}")
+        logger.error(f"Error setting human flag on session {session_id}: {e}")
         db.rollback()
         return False
     finally:
@@ -141,7 +139,7 @@ def set_session_requires_human(session_id: int, requires_human: bool = True) -> 
 
 def get_session_conversation_state(session_id: int) -> Optional[Dict]:
     """
-    دریافت وضعیت مکالمه جلسه
+    Retrieve the conversation state of a session (for debugging and UI).
     """
     db = SessionLocal()
     try:
@@ -158,7 +156,7 @@ def get_session_conversation_state(session_id: int) -> Optional[Dict]:
             "last_activity": session.last_activity
         }
     except Exception as e:
-        logger.error(f"خطا در دریافت وضعیت جلسه {session_id}: {e}")
+        logger.error(f"Error retrieving session state {session_id}: {e}")
         return None
     finally:
         db.close()
@@ -166,7 +164,7 @@ def get_session_conversation_state(session_id: int) -> Optional[Dict]:
 
 def is_session_active(session_id: int) -> bool:
     """
-    بررسی فعال بودن جلسه (بر اساس last_activity)
+    Check if a session is still considered active (based on last_activity).
     """
     db = SessionLocal()
     now = datetime.utcnow()
@@ -179,7 +177,7 @@ def is_session_active(session_id: int) -> bool:
         ).first()
         return session is not None
     except Exception as e:
-        logger.error(f"خطا در بررسی فعال بودن جلسه {session_id}: {e}")
+        logger.error(f"Error checking active status for session {session_id}: {e}")
         return False
     finally:
         db.close()
@@ -187,7 +185,8 @@ def is_session_active(session_id: int) -> bool:
 
 def close_all_patient_sessions(patient_id: int) -> int:
     """
-    بستن تمام جلسات فعال یک بیمار
+    Close all active sessions belonging to a patient.
+    Returns the number of sessions closed.
     """
     db = SessionLocal()
     now = datetime.utcnow()
@@ -201,10 +200,10 @@ def close_all_patient_sessions(patient_id: int) -> int:
         })
         db.commit()
         if result:
-            logger.info(f"{result} جلسه فعال برای بیمار {patient_id} بسته شد.")
+            logger.info(f"Closed {result} sessions for patient {patient_id}.")
         return result
     except Exception as e:
-        logger.error(f"خطا در بستن جلسات بیمار {patient_id}: {e}")
+        logger.error(f"Error closing sessions for patient {patient_id}: {e}")
         db.rollback()
         return 0
     finally:
@@ -213,7 +212,7 @@ def close_all_patient_sessions(patient_id: int) -> int:
 
 def get_patient_session_history(patient_id: int, limit: int = 10) -> List[Dict]:
     """
-    دریافت تاریخچه جلسات بیمار (آخرین جلسات)
+    Return a list of the last `limit` sessions for a patient.
     """
     db = SessionLocal()
     try:
@@ -231,7 +230,7 @@ def get_patient_session_history(patient_id: int, limit: int = 10) -> List[Dict]:
             for s in sessions
         ]
     except Exception as e:
-        logger.error(f"خطا در دریافت تاریخچه جلسات بیمار {patient_id}: {e}")
+        logger.error(f"Error fetching session history for patient {patient_id}: {e}")
         return []
     finally:
         db.close()
@@ -239,7 +238,7 @@ def get_patient_session_history(patient_id: int, limit: int = 10) -> List[Dict]:
 
 def get_active_sessions_count(clinic_id: int) -> int:
     """
-    دریافت تعداد جلسات فعال کلینیک
+    Count active sessions for a clinic (used for monitoring).
     """
     db = SessionLocal()
     now = datetime.utcnow()
@@ -252,7 +251,7 @@ def get_active_sessions_count(clinic_id: int) -> int:
         ).count()
         return count
     except Exception as e:
-        logger.error(f"خطا در دریافت تعداد جلسات فعال کلینیک {clinic_id}: {e}")
+        logger.error(f"Error counting active sessions for clinic {clinic_id}: {e}")
         return 0
     finally:
         db.close()
@@ -260,28 +259,17 @@ def get_active_sessions_count(clinic_id: int) -> int:
 
 def format_session_duration(session: Session) -> str:
     """
-    فرمت کردن مدت زمان جلسه برای نمایش
+    Format the duration of a session for display (human readable).
     """
     if not session.end_time:
         end = datetime.utcnow()
     else:
         end = session.end_time
-
     duration = end - session.start_time
-    minutes = int(duration.total_seconds() / 60)
-
+    minutes = int(duration.total_seconds() // 60)
     if minutes < 60:
-        return f"{minutes} دقیقه"
+        return f"{minutes} minutes"
     else:
         hours = minutes // 60
         mins = minutes % 60
-        return f"{hours} ساعت و {mins} دقیقه"
-
-
-# اگر فایل به صورت مستقیم اجرا شد
-if __name__ == "__main__":
-    print("=" * 50)
-    print("ماژول مدیریت جلسات ClinicOS")
-    print("=" * 50)
-    print("✅ session_manager بارگذاری شد.")
-    print("توابع اصلی: get_or_create_session(), update_session_activity(), close_session()")
+        return f"{hours} hours and {mins} minutes"
