@@ -1,52 +1,98 @@
+"""
+OpenRouter Provider – Strict free‑mode only integration.
+Uses a configurable allowlist of free models (must end with ":free").
+No internal fallback loops; each call receives a specific model (decided by the router).
+If no model is provided (should not happen in normal operation), the first free model is used as a safe fallback.
+"""
+
 import asyncio
 import requests
-from ..base_provider import BaseLLMProvider
-from ..exceptions import RateLimitError, QuotaExceededError
+import logging
+from typing import Optional, List
+from .base_provider import BaseLLMProvider
+from llm.config import OPENROUTER_API_KEY, OPENROUTER_FREE_MODELS
+
+logger = logging.getLogger(__name__)
+
+OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions"
+
 
 class OpenRouterProvider(BaseLLMProvider):
-    name = "openrouter"
-    default_model = "deepseek/deepseek-chat-v3"  # first in internal fallback chain
-    base_url = "https://openrouter.ai/api/v1/chat/completions"
-    
-    # Internal model fallback chain
-    MODEL_FALLBACK = [
-        "deepseek/deepseek-chat-v3",
-        "qwen/qwen3-235b-a22b",
-        "meta-llama/llama-3.3-70b-instruct",
-        "mistralai/mistral-large"
-    ]
-    
+    def __init__(self, api_key: Optional[str] = None, free_models: Optional[List[str]] = None):
+        self.api_key = api_key or OPENROUTER_API_KEY
+        self.free_models = free_models or OPENROUTER_FREE_MODELS
+        self._validate_free_models()
+
+    def _validate_free_models(self):
+        """Ensure that the free models list is non‑empty and each model ends with ':free'."""
+        if not self.free_models:
+            raise ValueError("OPENROUTER_FREE_MODELS is empty or not configured")
+        for model in self.free_models:
+            if not isinstance(model, str) or not model.endswith(":free"):
+                raise ValueError(f"Invalid free model: {model} – must end with ':free'")
+
+    def _validate_model(self, model: str):
+        """Hard validation before every API call."""
+        if model not in self.free_models:
+            raise ValueError(f"Model {model} is not in OPENROUTER_FREE_MODELS")
+        if not model.endswith(":free"):
+            raise ValueError(f"Model {model} does not end with ':free'")
+
     async def generate(self, prompt: str, **kwargs) -> str:
-        last_exception = None
-        for model in self.MODEL_FALLBACK:
-            try:
-                headers = {
-                    "Authorization": f"Bearer {self.api_key}",
-                    "Content-Type": "application/json"
-                }
-                payload = {
-                    "model": model,
-                    "messages": [{"role": "user", "content": prompt}],
-                    "temperature": kwargs.get("temperature", 0.7),
-                    "max_tokens": kwargs.get("max_tokens", 500)
-                }
-                resp = await asyncio.to_thread(
-                    requests.post, self.base_url, headers=headers, json=payload, timeout=30
-                )
-                if resp.status_code == 429:
-                    raise RateLimitError("OpenRouter rate limit")
-                if resp.status_code == 402 or resp.status_code == 403:
-                    raise QuotaExceededError("OpenRouter quota exhausted")
-                resp.raise_for_status()
-                return resp.json()['choices'][0]['message']['content'].strip()
-            except Exception as e:
-                last_exception = e
-                continue
-        raise last_exception or RuntimeError("All OpenRouter fallback models failed")
-    
-    async def health_check(self) -> bool:
+        """
+        Generate a response using a specific free OpenRouter model.
+        The model must be provided in kwargs['model'] (router responsibility).
+        If no model is provided (fallback), the first free model is used (should not happen).
+        """
+        model = kwargs.get("model")
+        if not model:
+            # Fallback – should not happen in normal operation, but safe default
+            model = self.free_models[0]
+            logger.warning(f"No model provided to OpenRouter, using default: {model}")
+        self._validate_model(model)
+
+        temperature = kwargs.get("temperature", 0.7)
+        max_tokens = kwargs.get("max_tokens", 500)
+
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json"
+        }
+        payload = {
+            "model": model,
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+        }
+
         try:
-            await self.generate("Test", max_tokens=1)
+            resp = await asyncio.to_thread(
+                requests.post, OPENROUTER_API_URL, headers=headers, json=payload, timeout=30
+            )
+            if resp.status_code == 429:
+                raise Exception("OpenRouter rate limit (429)")
+            if resp.status_code == 401 or resp.status_code == 403:
+                raise Exception("OpenRouter authentication error – check API key")
+            resp.raise_for_status()
+            data = resp.json()
+            return data['choices'][0]['message']['content'].strip()
+        except requests.exceptions.Timeout:
+            raise Exception("OpenRouter request timed out")
+        except requests.exceptions.ConnectionError:
+            raise Exception("OpenRouter connection error")
+        except Exception as e:
+            logger.error(f"OpenRouter error (model {model}): {e}")
+            raise
+
+    async def health_check(self) -> bool:
+        """
+        Health check: try to call the first free model with minimal tokens.
+        """
+        if not self.free_models:
+            return False
+        try:
+            await self.generate("Test", model=self.free_models[0], max_tokens=1, temperature=0.0)
             return True
-        except Exception:
+        except Exception as e:
+            logger.warning(f"OpenRouter health check failed: {e}")
             return False
