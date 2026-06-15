@@ -27,7 +27,9 @@ from lead_scorer import calculate_lead_score
 from language_detector import detect_language
 from medical_safety import check_medical_risk
 from working_hours import can_auto_reply
-from gemini_client import get_gemini_client
+
+# اتصال به معماری جدید Router
+from llm.router import get_llm_router
 
 logger = logging.getLogger(__name__)
 
@@ -132,9 +134,12 @@ async def generate_reply(clinic_id: int, question: str, patient_id: int, lang: s
                 return k.answer_text
     finally:
         db.close()
+    
     prompt = REPLY_PROMPTS.get(lang, REPLY_PROMPTS['en']).format(history=history, question=question)
-    client = get_gemini_client()
-    return await client.generate_content(prompt)
+    
+    # استفاده از Router جدید
+    router = get_llm_router()
+    return await router.generate(prompt)
 
 # ---------- Main Processing Function ----------
 async def process_patient_message(update, context, clinic_id, platform, external_user_id, raw_text,
@@ -199,9 +204,13 @@ async def process_patient_message(update, context, clinic_id, platform, external
             context_str += f"User previously expressed fear: {prev_state.missing_information['fear_topic']}. "
 
         prompt_text = FACTS_PROMPT.replace("{context}", context_str).replace("{message}", raw_text)
-        client = get_gemini_client()
-        facts_json = await client.generate_content(prompt_text, temperature=0.2, max_tokens=500)
-        facts_json = re.sub(r'```json\n?|```', '', facts_json.strip())
+        
+        # استفاده از Router جدید
+        router = get_llm_router()
+        facts_json = await router.generate(prompt_text, max_tokens=500)
+        facts_json = re.sub(r'```json\n?|
+```', '', facts_json.strip())
+        
         try:
             facts = json.loads(facts_json)
         except json.JSONDecodeError:
