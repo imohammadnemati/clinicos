@@ -1,3 +1,9 @@
+"""
+ClinicOS Telegram Bot – Final Production Version
+Supports: language selection, role‑based menus, appointment wizard,
+staff management, leads, escalations, and new LLM orchestration layer.
+"""
+
 import logging
 import time
 import asyncio
@@ -10,7 +16,10 @@ from telegram.ext import (
     Application, CommandHandler, CallbackQueryHandler, MessageHandler,
     ConversationHandler, filters, ContextTypes
 )
-from config import BOT_TOKEN, OWNER_TELEGRAM_ID
+from config import (
+    BOT_TOKEN, OWNER_TELEGRAM_ID, REDIS_URL, OPENROUTER_FREE_MODELS,
+    validate_openrouter_config, INITIAL_SCORES
+)
 from database import SessionLocal, init_db
 from models import (
     Clinic, Staff, Patient, PatientAlias, Lead, Appointment,
@@ -19,9 +28,7 @@ from models import (
 from patient_agent import process_patient_message
 from appointment_engine import create_appointment_request
 from kpi_engine import get_kpi_summary
-
-# ایمپورت روتر جدید به جای کلاینت قدیمی جمینای
-from llm.router import get_llm_router
+from scheduler import start_scheduler
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -226,15 +233,7 @@ async def main_menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         db.close()
 
 # ========== Appointment Wizard ==========
-async def start_appointment_booking(update: Update, context: ContextTypes.DEFAULT_TYPE, clinic_id: int = None):
-    # مقداردهی به clinic_id در صورتی که تابع توسط ConversationHandler (بدون آرگومان سوم) صدا زده شود
-    if clinic_id is None:
-        db = SessionLocal()
-        try:
-            clinic_id = get_user_clinic_id(update.effective_user.id, db)
-        finally:
-            db.close()
-
+async def start_appointment_booking(update: Update, context: ContextTypes.DEFAULT_TYPE, clinic_id: int):
     keyboard = [
         [InlineKeyboardButton("بوتاکس", callback_data="appt_service_botox")],
         [InlineKeyboardButton("فیلر", callback_data="appt_service_filler")],
@@ -574,45 +573,38 @@ async def show_patient_appointments(update: Update, context: ContextTypes.DEFAUL
     finally:
         db.close()
 
-# ========== LLM Router Diagnostic Command ==========
-async def diagnose_llm(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """دستور برای عیب‌یابی وضعیت در دسترس بودن Provider ها"""
-    try:
-        router = get_llm_router()
-        msg = "🔍 *LLM Router Health Check*\n\n"
-        for name, data in router.providers.items():
-            status = "🟢 Ready" if data['cooldown_until'] < time.time() else "🔴 In Cooldown"
-            msg += f"🔹 *{data['name']}*\n   Score: `{data['score']}`\n   Status: {status}\n\n"
-            
-        await update.message.reply_text(msg, parse_mode='Markdown')
-    except Exception as e:
-        await update.message.reply_text(f"❌ Diagnostics failed: {e}")
-
-# ========== LLM Startup Diagnostic ==========
-def startup_llm_diagnostic():
-    """لاگ کردن وضعیت Provider ها در زمان راه‌اندازی سرور"""
-    try:
-        router = get_llm_router()
-        logger.info("=== LLM Router Startup ===")
-        if not router.providers:
-            logger.error("FATAL: No LLM Providers loaded! Check API Keys.")
-        for key, data in router.providers.items():
-            logger.info(f"Loaded Provider: {data['name']} (Initial Score: {data['score']})")
-    except Exception as e:
-        logger.error(f"LLM initialization failed: {e}")
-        raise  # مانع از شروع بات در صورت خطای حیاتی می‌شود
-
 # ========== Error Handler ==========
 async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logger.error(f"Exception: {context.error}", exc_info=context.error)
     if update and update.effective_message:
         await update.effective_message.reply_text("❌ خطای داخلی. لطفاً دقایقی دیگر تلاش کنید.")
 
+# ========== Startup Diagnostics ==========
+def startup_diagnostics():
+    """Verify configuration and log provider status."""
+    logger.info("=== ClinicOS Startup Diagnostics ===")
+    # Validate OpenRouter free models
+    try:
+        validate_openrouter_config()
+        logger.info(f"OpenRouter free models: {OPENROUTER_FREE_MODELS}")
+    except ValueError as e:
+        logger.error(f"FATAL: OpenRouter configuration error – {e}")
+        raise
+    # Check Redis availability (optional warning)
+    if not REDIS_URL:
+        logger.warning("REDIS_URL not set. Scores will NOT persist across restarts.")
+    else:
+        logger.info("Redis configured. Scores will be persisted.")
+    # Log initial provider scores (actual scores will be loaded from Redis at runtime)
+    logger.info(f"Initial provider scores: {INITIAL_SCORES}")
+    logger.info("LLM routing layer ready.")
+
 # ========== Main Application ==========
 def main():
     init_db()
+    startup_diagnostics()
 
-    # حذف وب‌هوک برای جلوگیری از conflict
+    # Delete webhook to avoid conflict
     for attempt in range(5):
         try:
             resp = requests.get(f"https://api.telegram.org/bot{BOT_TOKEN}/deleteWebhook")
@@ -627,13 +619,10 @@ def main():
     else:
         logger.error("Could not delete webhook after 5 attempts")
 
-    # اجرای دیاگنوستیک LLM در زمان راه‌اندازی
-    startup_llm_diagnostic()
-
     app = Application.builder().token(BOT_TOKEN).build()
 
     async def startup(application):
-        await asyncio.sleep(3)  # تأخیر اضافی برای اطمینان از بسته شدن کامل وب‌هوک
+        await asyncio.sleep(3)  # extra delay to let webhook fully close
         from scheduler import init_scheduler, get_scheduler
         init_scheduler()
         scheduler = get_scheduler()
@@ -643,9 +632,8 @@ def main():
 
     app.post_init = startup
 
-    # ثبت هندلرها
+    # Register handlers
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("diagnose_llm", diagnose_llm))  # تغییر نام دستور به LLM
     app.add_handler(CallbackQueryHandler(language_callback, pattern='^lang_'))
     app.add_handler(ConversationHandler(
         entry_points=[CallbackQueryHandler(staff_menu_callback, pattern='^staff_add_')],
@@ -670,7 +658,7 @@ def main():
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, main_menu_handler))
     app.add_error_handler(error_handler)
 
-    logger.info("🚀 ClinicOS bot started with full UX redesign and Multi-LLM Gateway")
+    logger.info("🚀 ClinicOS bot started with production LLM routing layer")
     app.run_polling()
 
 if __name__ == "__main__":
