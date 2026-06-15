@@ -1,5 +1,18 @@
+"""
+LLM Orchestration Layer – Multi‑provider router with deterministic scoring,
+Redis persistence, cost awareness, and OpenRouter free‑mode enforcement.
+"""
+
 from .provider_router import ProviderRouter
 from .provider_manager import ProviderManager
 from .base_provider import BaseLLMProvider
+from .state_store import StateStore
+from .cost_manager import CostManager
 
-__all__ = ["ProviderRouter", "ProviderManager", "BaseLLMProvider"]
+__all__ = [
+    "ProviderRouter",
+    "ProviderManager",
+    "BaseLLMProvider",
+    "StateStore",
+    "CostManager"
+]
