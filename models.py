@@ -1,5 +1,10 @@
+"""
+ClinicOS – Database Models (SQLAlchemy)
+All tables for CRM, patients, staff, leads, appointments, escalations, etc.
+"""
+
 from sqlalchemy import Column, Integer, String, Float, Boolean, DateTime, ForeignKey, Text, JSON, Index, Time
-from sqlalchemy.orm import declarative_base, relationship
+from sqlalchemy.orm import declarative_base
 from datetime import datetime
 
 Base = declarative_base()
@@ -20,7 +25,7 @@ class Staff(Base):
     telegram_id = Column(Integer, unique=True)
     name = Column(String(200))
     role = Column(String(50))   # owner, doctor, secretary
-    language = Column(String(10), default='fa')   # زبان ترجیحی کارمند
+    language = Column(String(10), default='fa')   # preferred language for UI
     invited_by = Column(Integer, ForeignKey('staff.id'), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
@@ -395,7 +400,7 @@ class ObjectionLog(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
-# ========== مدل‌های Content Brain (اختیاری - برای توسعه آینده) ==========
+# Content Brain tables (optional, for future use)
 class ContentAsset(Base):
     __tablename__ = 'content_assets'
     id = Column(Integer, primary_key=True)
