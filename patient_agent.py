@@ -1,10 +1,21 @@
+"""
+ClinicOS – Patient Message Agent
+Core business logic: processes incoming patient messages, manages conversation state,
+patient memory, lead scoring, and invokes the LLM router for AI responses.
+"""
+
 import json
 import re
 import asyncio
 import hashlib
 import logging
 from datetime import datetime
-from config import LEAD_THRESHOLD
+from config import (
+    LEAD_THRESHOLD, DEEPSEEK_API_KEY, GEMINI_API_KEY, OPENAI_API_KEY,
+    OPENROUTER_API_KEY, OPENROUTER_FREE_MODELS, INITIAL_SCORES,
+    SCORE_SUCCESS_INCREMENT, SCORE_FAILURE_PENALTY, MAX_SCORE, MIN_SCORE,
+    CONSECUTIVE_FAILURES_THRESHOLD, COOLDOWN_SECONDS
+)
 from database import SessionLocal
 from models import (
     Session as SessionModel,
@@ -28,12 +39,51 @@ from language_detector import detect_language
 from medical_safety import check_medical_risk
 from working_hours import can_auto_reply
 
-# اتصال به معماری جدید Router
-from llm.router import get_llm_router
+# Import the new LLM router and its dependencies
+from llm.provider_router import ProviderRouter
+from llm.provider_manager import ProviderManager
+from llm.state_store import StateStore
+from llm.cost_manager import CostManager
+from llm.providers.deepseek_provider import DeepSeekProvider
+from llm.providers.gemini_provider import GeminiProvider
+from llm.providers.openai_provider import OpenAIProvider
+from llm.providers.openrouter_provider import OpenRouterProvider
 
 logger = logging.getLogger(__name__)
 
-# ---------- Prompts ----------
+# ---------- Initialize LLM Router (once at module load) ----------
+_state_store = StateStore(redis_url=config.REDIS_URL)  # will be imported from config
+_cost_manager = CostManager(redis_url=config.REDIS_URL,
+                            daily_budget=config.DAILY_BUDGET,
+                            monthly_budget=config.MONTHLY_BUDGET,
+                            free_providers=config.FREE_PROVIDERS)
+
+# Build provider instances
+providers = {}
+if DEEPSEEK_API_KEY:
+    providers["deepseek"] = DeepSeekProvider(api_key=DEEPSEEK_API_KEY)
+if GEMINI_API_KEY:
+    providers["gemini"] = GeminiProvider(api_key=GEMINI_API_KEY)
+if OPENAI_API_KEY:
+    providers["openai"] = OpenAIProvider(api_key=OPENAI_API_KEY)
+if OPENROUTER_API_KEY and OPENROUTER_FREE_MODELS:
+    providers["openrouter"] = OpenRouterProvider(api_key=OPENROUTER_API_KEY,
+                                                 free_models=OPENROUTER_FREE_MODELS)
+
+_provider_manager = ProviderManager(providers=providers,
+                                    state_store=_state_store,
+                                    cost_manager=_cost_manager,
+                                    initial_scores=INITIAL_SCORES,
+                                    score_increment=SCORE_SUCCESS_INCREMENT,
+                                    score_penalty=SCORE_FAILURE_PENALTY,
+                                    max_score=MAX_SCORE,
+                                    min_score=MIN_SCORE,
+                                    consecutive_failures_threshold=CONSECUTIVE_FAILURES_THRESHOLD,
+                                    cooldown_seconds=COOLDOWN_SECONDS)
+
+_router = ProviderRouter(provider_manager=_provider_manager)
+
+# ---------- Prompts (unchanged) ----------
 FACTS_PROMPT = """
 You are an AI assistant for a cosmetic clinic. Extract structured facts from the patient message.
 Consider the previous conversation context if provided.
@@ -134,12 +184,13 @@ async def generate_reply(clinic_id: int, question: str, patient_id: int, lang: s
                 return k.answer_text
     finally:
         db.close()
-    
     prompt = REPLY_PROMPTS.get(lang, REPLY_PROMPTS['en']).format(history=history, question=question)
-    
-    # استفاده از Router جدید
-    router = get_llm_router()
-    return await router.generate(prompt)
+    try:
+        # Use the router to generate the response (task=conversation)
+        return await _router.generate(prompt, task="conversation")
+    except Exception as e:
+        logger.error(f"Router generate failed: {e}")
+        return "متشکرم. پیام شما ثبت شد. به زودی پاسخگو خواهیم بود."
 
 # ---------- Main Processing Function ----------
 async def process_patient_message(update, context, clinic_id, platform, external_user_id, raw_text,
@@ -162,7 +213,7 @@ async def process_patient_message(update, context, clinic_id, platform, external
         session_id = get_or_create_session(clinic_id, patient_id)
         update_session_activity(session_id)
 
-        # Medical safety
+        # Medical safety (keyword-based only)
         is_risk, risk_level = await check_medical_risk(raw_text)
         if is_risk:
             db.add(EscalationLog(clinic_id=clinic_id, patient_id=patient_id, session_id=session_id,
@@ -176,6 +227,7 @@ async def process_patient_message(update, context, clinic_id, platform, external
             await update.message.reply_text(risk_msg)
             return
 
+        # Working hours
         if not await can_auto_reply(clinic_id, session_id, db):
             out_msg = {
                 'fa': "🌙 پیام شما ثبت شد. همکاران ما از ساعت ۸ صبح پاسخگو خواهند بود.",
@@ -186,6 +238,7 @@ async def process_patient_message(update, context, clinic_id, platform, external
             db.rollback()
             return
 
+        # Save raw message
         raw = RawMessage(
             clinic_id=clinic_id, patient_id=patient_id, session_id=session_id,
             platform=platform, external_user_id=external_user_id,
@@ -195,6 +248,7 @@ async def process_patient_message(update, context, clinic_id, platform, external
         db.add(raw)
         db.flush()
 
+        # Get conversation context
         conversation_history = await get_conversation_history(session_id, db, limit=6)
         prev_state = db.query(ConversationState).filter_by(session_id=session_id).first()
         context_str = ""
@@ -203,14 +257,14 @@ async def process_patient_message(update, context, clinic_id, platform, external
         if prev_state and prev_state.missing_information and 'fear_topic' in prev_state.missing_information:
             context_str += f"User previously expressed fear: {prev_state.missing_information['fear_topic']}. "
 
+        # Extract facts using the router (task=facts_extraction)
         prompt_text = FACTS_PROMPT.replace("{context}", context_str).replace("{message}", raw_text)
-        
-        # استفاده از Router جدید
-        router = get_llm_router()
-        facts_json = await router.generate(prompt_text, max_tokens=500)
-        facts_json = re.sub(r'```json\n?|
-```', '', facts_json.strip())
-        
+        try:
+            facts_json = await _router.generate(prompt_text, task="facts_extraction")
+        except Exception as e:
+            logger.error(f"Router facts extraction failed: {e}")
+            facts_json = "{}"
+        facts_json = re.sub(r'```json\n?|```', '', facts_json.strip())
         try:
             facts = json.loads(facts_json)
         except json.JSONDecodeError:
@@ -245,6 +299,7 @@ async def process_patient_message(update, context, clinic_id, platform, external
             await update.message.reply_text(human_msg)
             return
 
+        # Update patient profile
         profile = db.query(PatientProfile).filter_by(patient_id=patient_id).first()
         if not profile:
             profile = PatientProfile(patient_id=patient_id)
@@ -272,6 +327,7 @@ async def process_patient_message(update, context, clinic_id, platform, external
             )
             db.add(memory)
 
+        # Lead score
         lead_score = calculate_lead_score(
             intent=facts["intent"],
             service_interest=(facts["service"] != "none"),
@@ -281,6 +337,7 @@ async def process_patient_message(update, context, clinic_id, platform, external
             conversation_depth=profile.conversation_count
         )
 
+        # Save event
         event = Event(
             clinic_id=clinic_id, raw_message_id=raw.id, session_id=session_id, patient_id=patient_id,
             intent_type=facts["intent"], objection_category=facts["objection_category"],
@@ -304,8 +361,10 @@ async def process_patient_message(update, context, clinic_id, platform, external
                 if facts.get("appointment_request"):
                     db.add(AppointmentRequest(clinic_id=clinic_id, lead_id=lead.id, suggested_date=datetime.utcnow()))
 
+        # Generate reply using the router (task=conversation)
         answer = await generate_reply(clinic_id, facts.get("extracted_question") or raw_text, patient_id, lang, conversation_history)
 
+        # Update outcome pattern
         ans_hash = hashlib.sha256(answer.encode()).hexdigest()
         pattern = db.query(OutcomePattern).filter_by(clinic_id=clinic_id, answer_pattern_hash=ans_hash).first()
         if pattern:
