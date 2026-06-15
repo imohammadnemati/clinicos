@@ -12,9 +12,11 @@ DATABASE_POOL_TIMEOUT = int(os.getenv("DATABASE_POOL_TIMEOUT", "30"))
 DATABASE_POOL_RECYCLE = int(os.getenv("DATABASE_POOL_RECYCLE", "3600"))
 DEBUG_MODE = os.getenv("DEBUG_MODE", "False").lower() == "true"
 
-# ---------- Google Gemini API ----------
+# ---------- LLM Providers (Router Architecture) ----------
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
 
 # ---------- (اختیاری) Groq API – در صورت استفاده ----------
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
@@ -58,8 +60,11 @@ def validate_config():
         errors.append("BOT_TOKEN not set")
     if OWNER_TELEGRAM_ID == 0:
         errors.append("OWNER_TELEGRAM_ID not set")
-    if not GEMINI_API_KEY:
-        errors.append("GEMINI_API_KEY not set (Google Gemini required)")
+    
+    # در معماری جدید، حداقل یکی از Providerها باید کلید داشته باشد
+    if not GEMINI_API_KEY and not OPENROUTER_API_KEY:
+        errors.append("No LLM Provider API Key set (Need at least GEMINI_API_KEY or OPENROUTER_API_KEY)")
+        
     if errors:
         for err in errors:
             print(f"❌ {err}")
@@ -72,6 +77,7 @@ def get_config_summary():
         "owner_telegram_id": OWNER_TELEGRAM_ID,
         "database_url": DATABASE_URL.split("://")[0],
         "gemini_configured": bool(GEMINI_API_KEY),
+        "openrouter_configured": bool(OPENROUTER_API_KEY),
         "gemini_model": GEMINI_MODEL,
         "lead_threshold": LEAD_THRESHOLD,
         "session_hours": SESSION_HOURS,
@@ -85,7 +91,7 @@ def get_config_summary():
 
 if __name__ == "__main__":
     print("=" * 50)
-    print("ClinicOS Configuration (Google Gemini)")
+    print("ClinicOS Configuration (Multi-LLM Router)")
     print("=" * 50)
     if validate_config():
         for k, v in get_config_summary().items():
