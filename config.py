@@ -28,25 +28,11 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
 
-# ========== OpenRouter Free‑Mode Only – Strict Allowlist ==========
-# Must be a JSON array of strings, each ending with ":free"
-# Example: '["deepseek/deepseek-chat-v3-0324:free","meta-llama/llama-3.3-70b-instruct:free"]'
-OPENROUTER_FREE_MODELS_RAW = os.getenv("OPENROUTER_FREE_MODELS", "[]")
-try:
-    OPENROUTER_FREE_MODELS = json.loads(OPENROUTER_FREE_MODELS_RAW)
-except json.JSONDecodeError:
-    OPENROUTER_FREE_MODELS = []
-
-# Validate at runtime (called in bot.py startup)
-def validate_openrouter_config():
-    if not OPENROUTER_FREE_MODELS:
-        raise ValueError("OPENROUTER_FREE_MODELS is empty or invalid. Must be a non‑empty JSON array.")
-    for model in OPENROUTER_FREE_MODELS:
-        if not isinstance(model, str) or not model.endswith(":free"):
-            raise ValueError(f"Model '{model}' does not end with ':free'. OpenRouter free mode only.")
+# ========== OpenRouter Free Mode – No manual list needed ==========
+# The provider will automatically fetch free models from OpenRouter API.
+# OPENROUTER_FREE_MODELS is no longer required.
 
 # ========== LLM Base Scores (initial) ==========
-# These are starting scores; actual scores are stored in Redis and evolve over time.
 INITIAL_SCORES = {
     "deepseek": 100,
     "gemini": 90,
@@ -65,7 +51,6 @@ COOLDOWN_SECONDS = 15 * 60   # 15 minutes
 # ========== Cost Manager (Quota Score) ==========
 DAILY_BUDGET = float(os.getenv("DAILY_BUDGET", "5.0"))        # dollars per day
 MONTHLY_BUDGET = float(os.getenv("MONTHLY_BUDGET", "50.0"))  # dollars per month
-# Free providers always return quota_score = 100
 FREE_PROVIDERS = ["openrouter"]
 
 # ========== Lead & Session (existing) ==========
@@ -112,7 +97,6 @@ def get_config_summary() -> dict:
         "gemini_configured": bool(GEMINI_API_KEY),
         "openai_configured": bool(OPENAI_API_KEY),
         "openrouter_configured": bool(OPENROUTER_API_KEY),
-        "openrouter_free_models_count": len(OPENROUTER_FREE_MODELS),
         "initial_scores": INITIAL_SCORES,
         "lead_threshold": LEAD_THRESHOLD,
         "session_hours": SESSION_HOURS,
