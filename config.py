@@ -28,9 +28,10 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
 
-# ========== OpenRouter Free Mode – No manual list needed ==========
-# The provider will automatically fetch free models from OpenRouter API.
-# OPENROUTER_FREE_MODELS is no longer required.
+# ========== OpenRouter Free Mode – Models ==========
+# This list is used by bot.py for startup diagnostics.
+# The provider will automatically fetch free models from OpenRouter API if this list is empty.
+OPENROUTER_FREE_MODELS = os.getenv("OPENROUTER_FREE_MODELS", "").split(",") if os.getenv("OPENROUTER_FREE_MODELS") else []
 
 # ========== LLM Base Scores (initial) ==========
 INITIAL_SCORES = {
@@ -86,6 +87,16 @@ LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 LOG_FILE_PATH = os.getenv("LOG_FILE_PATH", "logs/clinic_brain.log")
 
 # ========== Helper Functions ==========
+def validate_openrouter_config() -> None:
+    """
+    Validate OpenRouter configuration.
+    Raises ValueError if API key is missing.
+    """
+    if not OPENROUTER_API_KEY:
+        raise ValueError("OPENROUTER_API_KEY is not set. OpenRouter provider requires an API key.")
+    # Optionally, log the number of free models (if any)
+    # but we don't raise an error if the list is empty.
+
 def get_config_summary() -> dict:
     """Return a summary of key configuration (without secrets)."""
     return {
@@ -97,6 +108,7 @@ def get_config_summary() -> dict:
         "gemini_configured": bool(GEMINI_API_KEY),
         "openai_configured": bool(OPENAI_API_KEY),
         "openrouter_configured": bool(OPENROUTER_API_KEY),
+        "openrouter_free_models_count": len(OPENROUTER_FREE_MODELS),
         "initial_scores": INITIAL_SCORES,
         "lead_threshold": LEAD_THRESHOLD,
         "session_hours": SESSION_HOURS,
