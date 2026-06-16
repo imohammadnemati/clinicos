@@ -10,11 +10,24 @@ import asyncio
 import hashlib
 import logging
 from datetime import datetime
+
 from config import (
-    LEAD_THRESHOLD, DEEPSEEK_API_KEY, GEMINI_API_KEY, OPENAI_API_KEY,
-    OPENROUTER_API_KEY, OPENROUTER_FREE_MODELS, INITIAL_SCORES,
-    SCORE_SUCCESS_INCREMENT, SCORE_FAILURE_PENALTY, MAX_SCORE, MIN_SCORE,
-    CONSECUTIVE_FAILURES_THRESHOLD, COOLDOWN_SECONDS
+    LEAD_THRESHOLD,
+    DEEPSEEK_API_KEY,
+    GEMINI_API_KEY,
+    OPENAI_API_KEY,
+    OPENROUTER_API_KEY,
+    INITIAL_SCORES,
+    SCORE_SUCCESS_INCREMENT,
+    SCORE_FAILURE_PENALTY,
+    MAX_SCORE,
+    MIN_SCORE,
+    CONSECUTIVE_FAILURES_THRESHOLD,
+    COOLDOWN_SECONDS,
+    DAILY_BUDGET,
+    MONTHLY_BUDGET,
+    FREE_PROVIDERS,
+    REDIS_URL,
 )
 from database import SessionLocal
 from models import (
@@ -30,7 +43,7 @@ from models import (
     PatientProfile,
     PatientMemory,
     EscalationLog,
-    ConversationState
+    ConversationState,
 )
 from identity_resolution import get_or_create_patient
 from session_manager import get_or_create_session, update_session_activity
@@ -52,11 +65,13 @@ from llm.providers.openrouter_provider import OpenRouterProvider
 logger = logging.getLogger(__name__)
 
 # ---------- Initialize LLM Router (once at module load) ----------
-_state_store = StateStore(redis_url=config.REDIS_URL)  # will be imported from config
-_cost_manager = CostManager(redis_url=config.REDIS_URL,
-                            daily_budget=config.DAILY_BUDGET,
-                            monthly_budget=config.MONTHLY_BUDGET,
-                            free_providers=config.FREE_PROVIDERS)
+_state_store = StateStore(redis_url=REDIS_URL)
+_cost_manager = CostManager(
+    redis_url=REDIS_URL,
+    daily_budget=DAILY_BUDGET,
+    monthly_budget=MONTHLY_BUDGET,
+    free_providers=FREE_PROVIDERS,
+)
 
 # Build provider instances
 providers = {}
@@ -66,24 +81,25 @@ if GEMINI_API_KEY:
     providers["gemini"] = GeminiProvider(api_key=GEMINI_API_KEY)
 if OPENAI_API_KEY:
     providers["openai"] = OpenAIProvider(api_key=OPENAI_API_KEY)
-if OPENROUTER_API_KEY and OPENROUTER_FREE_MODELS:
-    providers["openrouter"] = OpenRouterProvider(api_key=OPENROUTER_API_KEY,
-                                                 free_models=OPENROUTER_FREE_MODELS)
+if OPENROUTER_API_KEY:
+    providers["openrouter"] = OpenRouterProvider(api_key=OPENROUTER_API_KEY)
 
-_provider_manager = ProviderManager(providers=providers,
-                                    state_store=_state_store,
-                                    cost_manager=_cost_manager,
-                                    initial_scores=INITIAL_SCORES,
-                                    score_increment=SCORE_SUCCESS_INCREMENT,
-                                    score_penalty=SCORE_FAILURE_PENALTY,
-                                    max_score=MAX_SCORE,
-                                    min_score=MIN_SCORE,
-                                    consecutive_failures_threshold=CONSECUTIVE_FAILURES_THRESHOLD,
-                                    cooldown_seconds=COOLDOWN_SECONDS)
+_provider_manager = ProviderManager(
+    providers=providers,
+    state_store=_state_store,
+    cost_manager=_cost_manager,
+    initial_scores=INITIAL_SCORES,
+    score_increment=SCORE_SUCCESS_INCREMENT,
+    score_penalty=SCORE_FAILURE_PENALTY,
+    max_score=MAX_SCORE,
+    min_score=MIN_SCORE,
+    consecutive_failures_threshold=CONSECUTIVE_FAILURES_THRESHOLD,
+    cooldown_seconds=COOLDOWN_SECONDS,
+)
 
 _router = ProviderRouter(provider_manager=_provider_manager)
 
-# ---------- Prompts (unchanged) ----------
+# ---------- Prompts ----------
 FACTS_PROMPT = """
 You are an AI assistant for a cosmetic clinic. Extract structured facts from the patient message.
 Consider the previous conversation context if provided.
@@ -109,7 +125,7 @@ JSON:
 """
 
 REPLY_PROMPTS = {
-    'en': """You are a professional, warm, and friendly receptionist at a cosmetic clinic.
+    "en": """You are a professional, warm, and friendly receptionist at a cosmetic clinic.
 You are already in a conversation with the patient. Do NOT start with a greeting unless this is the very first message.
 Continue the conversation naturally. Keep responses short, polite, and helpful.
 Use the conversation history to provide coherent answers.
@@ -122,8 +138,7 @@ Conversation history (last exchanges):
 
 Current patient message: {question}
 Your reply:""",
-
-    'fa': """تو یک منشی حرفه‌ای، گرم و صمیمی کلینیک زیبایی هستی. هم‌اکنون در حال گفتگو با بیمار هستی. مگر اینکه این اولین پیام گفتگو باشد، هیچ‌گاه با "سلام" شروع نکن. مکالمه را طبیعی ادامه بده.
+    "fa": """تو یک منشی حرفه‌ای، گرم و صمیمی کلینیک زیبایی هستی. هم‌اکنون در حال گفتگو با بیمار هستی. مگر اینکه این اولین پیام گفتگو باشد، هیچ‌گاه با "سلام" شروع نکن. مکالمه را طبیعی ادامه بده.
 از تاریخچه گفتگو برای پاسخ‌های پیوسته استفاده کن. تاریخچه شامل پیام‌های قبلی بیمار است.
 اگر بیمار درباره قیمت پرسید بگو: "قیمت بستگی به ناحیه و شرایط داره، لطفاً ناحیه مد نظرتون رو بفرمایید."
 اگر سوال پزشکی است که نیاز به پزشک دارد بگو: "برای پاسخ دقیق نیاز به معاینه توسط پزشک داریم. می‌تونید وقت مشاوره بگیرید؟"
@@ -134,8 +149,7 @@ Your reply:""",
 
 پیام فعلی بیمار: {question}
 پاسخ تو:""",
-
-    'ar': """أنت موظف استقبال محترم و ودود في عيادة تجميل. أنت الآن في محادثة مع المريض. لا تبدأ بـ "مرحباً" إلا إذا كانت أول رسالة. استمر في المحادثة بشكل طبيعي.
+    "ar": """أنت موظف استقبال محترم و ودود في عيادة تجميل. أنت الآن في محادثة مع المريض. لا تبدأ بـ "مرحباً" إلا إذا كانت أول رسالة. استمر في المحادثة بشكل طبيعي.
 استخدم تاريخ المحادثة للإجابة المستمرة.
 إذا سأل عن الأسعار قل: "السعر يعتمد على المنطقة وعدد الوحدات. هل تخبرني بالمنطقة التي تهتم بها؟"
 إذا سأل أسئلة طبية تحتاج إلى طبيب قل: "للحصول على إجابة دقيقة، تحتاج إلى استشارة طبيبنا. هل ترغب في حجز استشارة مجانية؟"
@@ -145,19 +159,18 @@ Your reply:""",
 {history}
 
 رسالة المريض الحالية: {question}
-ردك:"""
+ردك:""",
 }
 
 # ---------- Helper Functions ----------
 async def get_conversation_history(session_id: int, db, limit: int = 6) -> str:
-    events = db.query(Event).filter(
-        Event.session_id == session_id
-    ).order_by(Event.created_at.desc()).limit(limit).all()
+    events = db.query(Event).filter(Event.session_id == session_id).order_by(Event.created_at.desc()).limit(limit).all()
     history_list = []
     for ev in reversed(events):
         if ev.extracted_question:
             history_list.append(f"Patient: {ev.extracted_question}")
     return "\n".join(history_list)
+
 
 async def update_conversation_state(session_id: int, service: str, intent: str, objection: str, db):
     state = db.query(ConversationState).filter_by(session_id=session_id).first()
@@ -172,19 +185,20 @@ async def update_conversation_state(session_id: int, service: str, intent: str, 
     state.updated_at = datetime.utcnow()
     db.commit()
 
+
 async def generate_reply(clinic_id: int, question: str, patient_id: int, lang: str, history: str) -> str:
     db = SessionLocal()
     try:
         knowledge = db.query(KnowledgeItem).filter(
             KnowledgeItem.clinic_id == clinic_id,
-            KnowledgeItem.effective_date <= datetime.utcnow()
+            KnowledgeItem.effective_date <= datetime.utcnow(),
         ).order_by(KnowledgeItem.version.desc()).all()
         for k in knowledge:
             if k.question_text and k.question_text in question:
                 return k.answer_text
     finally:
         db.close()
-    prompt = REPLY_PROMPTS.get(lang, REPLY_PROMPTS['en']).format(history=history, question=question)
+    prompt = REPLY_PROMPTS.get(lang, REPLY_PROMPTS["en"]).format(history=history, question=question)
     try:
         # Use the router to generate the response (task=conversation)
         return await _router.generate(prompt, task="conversation")
@@ -192,20 +206,32 @@ async def generate_reply(clinic_id: int, question: str, patient_id: int, lang: s
         logger.error(f"Router generate failed: {e}")
         return "متشکرم. پیام شما ثبت شد. به زودی پاسخگو خواهیم بود."
 
+
 # ---------- Main Processing Function ----------
-async def process_patient_message(update, context, clinic_id, platform, external_user_id, raw_text,
-                                  media_url=None, media_type=None, transcript=None, db=None):
+async def process_patient_message(
+    update,
+    context,
+    clinic_id,
+    platform,
+    external_user_id,
+    raw_text,
+    media_url=None,
+    media_type=None,
+    transcript=None,
+    db=None,
+):
     if db is None:
         db = SessionLocal()
     try:
-        if raw_text.strip().startswith('/start'):
+        if raw_text.strip().startswith("/start"):
             await update.message.reply_text("Hello! 🌷 Welcome to our clinic. How can I assist you today?")
             return
 
         user = update.effective_user
         lang = detect_language(raw_text)
-        patient_id = get_or_create_patient(clinic_id, platform, external_user_id,
-                                           user.username, user.full_name, raw_text)
+        patient_id = get_or_create_patient(
+            clinic_id, platform, external_user_id, user.username, user.full_name, raw_text
+        )
         patient = db.query(Patient).filter_by(id=patient_id).first()
         if patient:
             patient.preferred_language = lang
@@ -216,13 +242,21 @@ async def process_patient_message(update, context, clinic_id, platform, external
         # Medical safety (keyword-based only)
         is_risk, risk_level = await check_medical_risk(raw_text)
         if is_risk:
-            db.add(EscalationLog(clinic_id=clinic_id, patient_id=patient_id, session_id=session_id,
-                                 reason="medical_risk", trigger=risk_level, escalated_to="doctor"))
+            db.add(
+                EscalationLog(
+                    clinic_id=clinic_id,
+                    patient_id=patient_id,
+                    session_id=session_id,
+                    reason="medical_risk",
+                    trigger=risk_level,
+                    escalated_to="doctor",
+                )
+            )
             db.commit()
             risk_msg = {
-                'fa': "⚠️ برای پاسخ به این سوال نیاز به بررسی پزشک دارید. لطفاً با کلینیک تماس بگیرید.",
-                'en': "⚠️ This question requires a doctor's review. Please contact the clinic.",
-                'ar': "⚠️ هذا السؤال يحتاج إلى مراجعة الطبيب. يرجى الاتصال بالعيادة."
+                "fa": "⚠️ برای پاسخ به این سوال نیاز به بررسی پزشک دارید. لطفاً با کلینیک تماس بگیرید.",
+                "en": "⚠️ This question requires a doctor's review. Please contact the clinic.",
+                "ar": "⚠️ هذا السؤال يحتاج إلى مراجعة الطبيب. يرجى الاتصال بالعيادة.",
             }.get(lang, "⚠️ This question requires a doctor's review. Please contact the clinic.")
             await update.message.reply_text(risk_msg)
             return
@@ -230,9 +264,9 @@ async def process_patient_message(update, context, clinic_id, platform, external
         # Working hours
         if not await can_auto_reply(clinic_id, session_id, db):
             out_msg = {
-                'fa': "🌙 پیام شما ثبت شد. همکاران ما از ساعت ۸ صبح پاسخگو خواهند بود.",
-                'en': "🌙 Your message has been recorded. Our team will respond from 8 AM.",
-                'ar': "🌙 تم تسجيل رسالتك. سيقوم فريقنا بالرد اعتباراً من الساعة 8 صباحاً."
+                "fa": "🌙 پیام شما ثبت شد. همکاران ما از ساعت ۸ صبح پاسخگو خواهند بود.",
+                "en": "🌙 Your message has been recorded. Our team will respond from 8 AM.",
+                "ar": "🌙 تم تسجيل رسالتك. سيقوم فريقنا بالرد اعتباراً من الساعة 8 صباحاً.",
             }.get(lang, "🌙 Your message has been recorded. Our team will respond from 8 AM.")
             await update.message.reply_text(out_msg)
             db.rollback()
@@ -240,10 +274,16 @@ async def process_patient_message(update, context, clinic_id, platform, external
 
         # Save raw message
         raw = RawMessage(
-            clinic_id=clinic_id, patient_id=patient_id, session_id=session_id,
-            platform=platform, external_user_id=external_user_id,
-            message_text=raw_text, media_url=media_url, media_type=media_type,
-            transcript=transcript, created_at=datetime.utcnow()
+            clinic_id=clinic_id,
+            patient_id=patient_id,
+            session_id=session_id,
+            platform=platform,
+            external_user_id=external_user_id,
+            message_text=raw_text,
+            media_url=media_url,
+            media_type=media_type,
+            transcript=transcript,
+            created_at=datetime.utcnow(),
         )
         db.add(raw)
         db.flush()
@@ -254,7 +294,7 @@ async def process_patient_message(update, context, clinic_id, platform, external
         context_str = ""
         if prev_state and prev_state.current_goal:
             context_str = f"User previously asked about {prev_state.current_goal}. "
-        if prev_state and prev_state.missing_information and 'fear_topic' in prev_state.missing_information:
+        if prev_state and prev_state.missing_information and "fear_topic" in prev_state.missing_information:
             context_str += f"User previously expressed fear: {prev_state.missing_information['fear_topic']}. "
 
         # Extract facts using the router (task=facts_extraction)
@@ -264,7 +304,7 @@ async def process_patient_message(update, context, clinic_id, platform, external
         except Exception as e:
             logger.error(f"Router facts extraction failed: {e}")
             facts_json = "{}"
-        facts_json = re.sub(r'```json\n?|```', '', facts_json.strip())
+        facts_json = re.sub(r"```json\n?|```", "", facts_json.strip())
         try:
             facts = json.loads(facts_json)
         except json.JSONDecodeError:
@@ -280,21 +320,23 @@ async def process_patient_message(update, context, clinic_id, platform, external
                 "fear_level": None,
                 "trust_level": None,
                 "price_sensitivity": None,
-                "important_memory": None
+                "important_memory": None,
             }
 
         if facts.get("service") in ["none", None] and prev_state and prev_state.current_goal:
             facts["service"] = prev_state.current_goal
 
-        await update_conversation_state(session_id, facts.get("service"), facts.get("intent"), facts.get("objection_category"), db)
+        await update_conversation_state(
+            session_id, facts.get("service"), facts.get("intent"), facts.get("objection_category"), db
+        )
 
         if facts.get("requires_human"):
             db.query(SessionModel).filter_by(id=session_id).update({"requires_human": True})
             db.commit()
             human_msg = {
-                'fa': "درخواست شما به منشی منتقل شد. لطفاً صبر کنید.",
-                'en': "Your request has been forwarded to our secretary. Please wait.",
-                'ar': "تم تحويل طلبك إلى السكرتير. يرجى الانتظار."
+                "fa": "درخواست شما به منشی منتقل شد. لطفاً صبر کنید.",
+                "en": "Your request has been forwarded to our secretary. Please wait.",
+                "ar": "تم تحويل طلبك إلى السكرتير. يرجى الانتظار.",
             }.get(lang, "Your request has been forwarded to our secretary. Please wait.")
             await update.message.reply_text(human_msg)
             return
@@ -305,25 +347,25 @@ async def process_patient_message(update, context, clinic_id, platform, external
             profile = PatientProfile(patient_id=patient_id)
             db.add(profile)
             db.flush()
-        if facts.get('fear_level') is not None:
-            profile.moving_avg_fear = profile.moving_avg_fear * 0.8 + facts['fear_level'] * 0.2
-        if facts.get('trust_level') is not None:
-            profile.moving_avg_trust = profile.moving_avg_trust * 0.8 + facts['trust_level'] * 0.2
-        if facts.get('price_sensitivity') is not None:
-            profile.moving_avg_price_sensitivity = profile.moving_avg_price_sensitivity * 0.8 + facts['price_sensitivity'] * 0.2
+        if facts.get("fear_level") is not None:
+            profile.moving_avg_fear = profile.moving_avg_fear * 0.8 + facts["fear_level"] * 0.2
+        if facts.get("trust_level") is not None:
+            profile.moving_avg_trust = profile.moving_avg_trust * 0.8 + facts["trust_level"] * 0.2
+        if facts.get("price_sensitivity") is not None:
+            profile.moving_avg_price_sensitivity = profile.moving_avg_price_sensitivity * 0.8 + facts["price_sensitivity"] * 0.2
         profile.conversation_count = (profile.conversation_count or 0) + 1
 
-        if facts.get('important_memory') and isinstance(facts['important_memory'], dict):
-            mem = facts['important_memory']
+        if facts.get("important_memory") and isinstance(facts["important_memory"], dict):
+            mem = facts["important_memory"]
             memory = PatientMemory(
                 patient_id=patient_id,
-                memory_type=mem.get('type', 'other'),
-                memory_text=mem.get('text', ''),
-                importance_score=mem.get('importance', 5),
+                memory_type=mem.get("type", "other"),
+                memory_text=mem.get("text", ""),
+                importance_score=mem.get("importance", 5),
                 mention_count=1,
                 confidence=0.8,
-                source='llm',
-                created_at=datetime.utcnow()
+                source="llm",
+                created_at=datetime.utcnow(),
             )
             db.add(memory)
 
@@ -334,45 +376,69 @@ async def process_patient_message(update, context, clinic_id, platform, external
             price_interest=facts["price_interest"],
             urgency=facts["urgency"],
             appointment_request=facts["appointment_request"],
-            conversation_depth=profile.conversation_count
+            conversation_depth=profile.conversation_count,
         )
 
         # Save event
         event = Event(
-            clinic_id=clinic_id, raw_message_id=raw.id, session_id=session_id, patient_id=patient_id,
-            intent_type=facts["intent"], objection_category=facts["objection_category"],
-            service=facts["service"], extracted_question=facts.get("extracted_question"),
-            lead_score=lead_score, created_at=datetime.utcnow()
+            clinic_id=clinic_id,
+            raw_message_id=raw.id,
+            session_id=session_id,
+            patient_id=patient_id,
+            intent_type=facts["intent"],
+            objection_category=facts["objection_category"],
+            service=facts["service"],
+            extracted_question=facts.get("extracted_question"),
+            lead_score=lead_score,
+            created_at=datetime.utcnow(),
         )
         db.add(event)
         db.flush()
 
         if lead_score >= LEAD_THRESHOLD:
-            existing_lead = db.query(Lead).filter_by(patient_id=patient_id, pipeline_stage='new').first()
+            existing_lead = db.query(Lead).filter_by(patient_id=patient_id, pipeline_stage="new").first()
             if not existing_lead:
                 lead = Lead(
-                    clinic_id=clinic_id, patient_id=patient_id, event_id=event.id,
-                    service=facts["service"], lead_score=lead_score,
-                    objection_category=facts["objection_category"], pipeline_stage='new'
+                    clinic_id=clinic_id,
+                    patient_id=patient_id,
+                    event_id=event.id,
+                    service=facts["service"],
+                    lead_score=lead_score,
+                    objection_category=facts["objection_category"],
+                    pipeline_stage="new",
+                    created_at=datetime.utcnow(),
                 )
                 db.add(lead)
                 db.flush()
-                db.add(PipelineHistory(lead_id=lead.id, stage='new'))
+                db.add(PipelineHistory(lead_id=lead.id, stage="new"))
                 if facts.get("appointment_request"):
-                    db.add(AppointmentRequest(clinic_id=clinic_id, lead_id=lead.id, suggested_date=datetime.utcnow()))
+                    db.add(
+                        AppointmentRequest(
+                            clinic_id=clinic_id,
+                            lead_id=lead.id,
+                            suggested_date=datetime.utcnow(),
+                            status="pending",
+                        )
+                    )
 
         # Generate reply using the router (task=conversation)
-        answer = await generate_reply(clinic_id, facts.get("extracted_question") or raw_text, patient_id, lang, conversation_history)
+        answer = await generate_reply(
+            clinic_id, facts.get("extracted_question") or raw_text, patient_id, lang, conversation_history
+        )
 
         # Update outcome pattern
         ans_hash = hashlib.sha256(answer.encode()).hexdigest()
-        pattern = db.query(OutcomePattern).filter_by(clinic_id=clinic_id, answer_pattern_hash=ans_hash).first()
+        pattern = db.query(OutcomePattern).filter_by(
+            clinic_id=clinic_id, answer_pattern_hash=ans_hash
+        ).first()
         if pattern:
             pattern.total_count += 1
         else:
             pattern = OutcomePattern(
-                clinic_id=clinic_id, answer_pattern_hash=ans_hash,
-                total_count=1, conversion_rate=0.0
+                clinic_id=clinic_id,
+                answer_pattern_hash=ans_hash,
+                total_count=1,
+                conversion_rate=0.0,
             )
             db.add(pattern)
 
