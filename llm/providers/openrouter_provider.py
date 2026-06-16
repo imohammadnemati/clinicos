@@ -21,7 +21,6 @@ FALLBACK_FREE_MODELS = [
     "deepseek/deepseek-chat-v3-0324:free",
     "meta-llama/llama-3.3-70b-instruct:free",
     "google/gemma-3-27b-it:free",
-    "openrouter/free",  # special route that picks any free model
 ]
 
 
@@ -46,7 +45,6 @@ class OpenRouterProvider(BaseLLMProvider):
                     if prompt_cost == 0.0 and completion_cost == 0.0:
                         model_id = model.get("id")
                         if model_id:
-                            # Append ":free" suffix as required by our validation
                             free_ids.append(f"{model_id}:free")
                 if free_ids:
                     logger.info(f"Fetched {len(free_ids)} free models from OpenRouter API")
@@ -66,9 +64,6 @@ class OpenRouterProvider(BaseLLMProvider):
 
     def _validate_model(self, model: str):
         """Hard validation before every API call."""
-        # Allow the special 'openrouter/free' route regardless of list
-        if model == "openrouter/free":
-            return
         if model not in self.free_models:
             raise ValueError(f"Model {model} is not in the free models list")
         if not model.endswith(":free"):
@@ -78,11 +73,11 @@ class OpenRouterProvider(BaseLLMProvider):
         """
         Generate a response using a specific free OpenRouter model.
         The model must be provided in kwargs['model'] (router responsibility).
-        If no model is provided, fallback to 'openrouter/free'.
+        If no model is provided, fallback to the first free model.
         """
         model = kwargs.get("model")
         if not model:
-            model = "openrouter/free"
+            model = self.free_models[0]
             logger.warning(f"No model provided to OpenRouter, using default: {model}")
         self._validate_model(model)
 
@@ -121,10 +116,12 @@ class OpenRouterProvider(BaseLLMProvider):
 
     async def health_check(self) -> bool:
         """
-        Health check: try to call the special 'openrouter/free' route.
+        Health check: try to call the first free model with minimal tokens.
         """
+        if not self.free_models:
+            return False
         try:
-            await self.generate("Test", max_tokens=1, temperature=0.0, model="openrouter/free")
+            await self.generate("Test", model=self.free_models[0], max_tokens=1, temperature=0.0)
             return True
         except Exception as e:
             logger.warning(f"OpenRouter health check failed: {e}")
