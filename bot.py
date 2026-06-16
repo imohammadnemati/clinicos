@@ -604,18 +604,19 @@ def main():
     init_db()
     startup_diagnostics()
 
-    # Delete webhook to avoid conflict
+    # Delete webhook with longer delay to avoid conflict
     for attempt in range(5):
         try:
-            resp = requests.get(f"https://api.telegram.org/bot{BOT_TOKEN}/deleteWebhook")
+            resp = requests.get(f"https://api.telegram.org/bot{BOT_TOKEN}/deleteWebhook", timeout=10)
             if resp.status_code == 200:
                 logger.info(f"Webhook deleted (attempt {attempt+1})")
+                time.sleep(5)  # افزایش تأخیر به ۵ ثانیه برای جلوگیری از Conflict
                 break
             else:
                 logger.warning(f"Delete webhook attempt {attempt+1} failed: {resp.text}")
         except Exception as e:
             logger.warning(f"Delete webhook attempt {attempt+1} error: {e}")
-        time.sleep(2)
+        time.sleep(3)  # تأخیر بین تلاش‌ها
     else:
         logger.error("Could not delete webhook after 5 attempts")
 
