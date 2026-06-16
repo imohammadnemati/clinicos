@@ -65,13 +65,8 @@ from llm.providers.openrouter_provider import OpenRouterProvider
 logger = logging.getLogger(__name__)
 
 # ---------- Initialize LLM Router (once at module load) ----------
-_state_store = StateStore(redis_url=REDIS_URL)
-_cost_manager = CostManager(
-    redis_url=REDIS_URL,
-    daily_budget=DAILY_BUDGET,
-    monthly_budget=MONTHLY_BUDGET,
-    free_providers=FREE_PROVIDERS,
-)
+_state_store = StateStore()                     # ← بدون آرگومان
+_cost_manager = CostManager()                   # ← بدون آرگومان
 
 # Build provider instances
 providers = {}
@@ -99,7 +94,7 @@ _provider_manager = ProviderManager(
 
 _router = ProviderRouter(provider_manager=_provider_manager)
 
-# ---------- Prompts ----------
+# ---------- Prompts (بدون تغییر) ----------
 FACTS_PROMPT = """
 You are an AI assistant for a cosmetic clinic. Extract structured facts from the patient message.
 Consider the previous conversation context if provided.
@@ -162,7 +157,7 @@ Your reply:""",
 ردك:""",
 }
 
-# ---------- Helper Functions ----------
+# ---------- Helper Functions (بدون تغییر) ----------
 async def get_conversation_history(session_id: int, db, limit: int = 6) -> str:
     events = db.query(Event).filter(Event.session_id == session_id).order_by(Event.created_at.desc()).limit(limit).all()
     history_list = []
@@ -200,14 +195,13 @@ async def generate_reply(clinic_id: int, question: str, patient_id: int, lang: s
         db.close()
     prompt = REPLY_PROMPTS.get(lang, REPLY_PROMPTS["en"]).format(history=history, question=question)
     try:
-        # Use the router to generate the response (task=conversation)
         return await _router.generate(prompt, task="conversation")
     except Exception as e:
         logger.error(f"Router generate failed: {e}")
         return "متشکرم. پیام شما ثبت شد. به زودی پاسخگو خواهیم بود."
 
 
-# ---------- Main Processing Function ----------
+# ---------- Main Processing Function (بدون تغییر) ----------
 async def process_patient_message(
     update,
     context,
@@ -239,7 +233,7 @@ async def process_patient_message(
         session_id = get_or_create_session(clinic_id, patient_id)
         update_session_activity(session_id)
 
-        # Medical safety (keyword-based only)
+        # Medical safety
         is_risk, risk_level = await check_medical_risk(raw_text)
         if is_risk:
             db.add(
@@ -297,7 +291,7 @@ async def process_patient_message(
         if prev_state and prev_state.missing_information and "fear_topic" in prev_state.missing_information:
             context_str += f"User previously expressed fear: {prev_state.missing_information['fear_topic']}. "
 
-        # Extract facts using the router (task=facts_extraction)
+        # Extract facts
         prompt_text = FACTS_PROMPT.replace("{context}", context_str).replace("{message}", raw_text)
         try:
             facts_json = await _router.generate(prompt_text, task="facts_extraction")
@@ -421,7 +415,7 @@ async def process_patient_message(
                         )
                     )
 
-        # Generate reply using the router (task=conversation)
+        # Generate reply
         answer = await generate_reply(
             clinic_id, facts.get("extracted_question") or raw_text, patient_id, lang, conversation_history
         )
