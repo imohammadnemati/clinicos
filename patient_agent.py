@@ -17,17 +17,6 @@ from config import (
     GEMINI_API_KEY,
     OPENAI_API_KEY,
     OPENROUTER_API_KEY,
-    INITIAL_SCORES,
-    SCORE_SUCCESS_INCREMENT,
-    SCORE_FAILURE_PENALTY,
-    MAX_SCORE,
-    MIN_SCORE,
-    CONSECUTIVE_FAILURES_THRESHOLD,
-    COOLDOWN_SECONDS,
-    DAILY_BUDGET,
-    MONTHLY_BUDGET,
-    FREE_PROVIDERS,
-    REDIS_URL,
 )
 from database import SessionLocal
 from models import (
@@ -65,8 +54,8 @@ from llm.providers.openrouter_provider import OpenRouterProvider
 logger = logging.getLogger(__name__)
 
 # ---------- Initialize LLM Router (once at module load) ----------
-_state_store = StateStore()                     # ← بدون آرگومان
-_cost_manager = CostManager()                   # ← بدون آرگومان
+_state_store = StateStore()
+_cost_manager = CostManager()
 
 # Build provider instances
 providers = {}
@@ -83,18 +72,11 @@ _provider_manager = ProviderManager(
     providers=providers,
     state_store=_state_store,
     cost_manager=_cost_manager,
-    initial_scores=INITIAL_SCORES,
-    score_increment=SCORE_SUCCESS_INCREMENT,
-    score_penalty=SCORE_FAILURE_PENALTY,
-    max_score=MAX_SCORE,
-    min_score=MIN_SCORE,
-    consecutive_failures_threshold=CONSECUTIVE_FAILURES_THRESHOLD,
-    cooldown_seconds=COOLDOWN_SECONDS,
 )
 
 _router = ProviderRouter(provider_manager=_provider_manager)
 
-# ---------- Prompts (بدون تغییر) ----------
+# ---------- Prompts (unchanged) ----------
 FACTS_PROMPT = """
 You are an AI assistant for a cosmetic clinic. Extract structured facts from the patient message.
 Consider the previous conversation context if provided.
@@ -157,7 +139,7 @@ Your reply:""",
 ردك:""",
 }
 
-# ---------- Helper Functions (بدون تغییر) ----------
+# ---------- Helper Functions ----------
 async def get_conversation_history(session_id: int, db, limit: int = 6) -> str:
     events = db.query(Event).filter(Event.session_id == session_id).order_by(Event.created_at.desc()).limit(limit).all()
     history_list = []
@@ -201,7 +183,7 @@ async def generate_reply(clinic_id: int, question: str, patient_id: int, lang: s
         return "متشکرم. پیام شما ثبت شد. به زودی پاسخگو خواهیم بود."
 
 
-# ---------- Main Processing Function (بدون تغییر) ----------
+# ---------- Main Processing Function ----------
 async def process_patient_message(
     update,
     context,
@@ -233,7 +215,7 @@ async def process_patient_message(
         session_id = get_or_create_session(clinic_id, patient_id)
         update_session_activity(session_id)
 
-        # Medical safety
+        # Medical safety (keyword-based only)
         is_risk, risk_level = await check_medical_risk(raw_text)
         if is_risk:
             db.add(
