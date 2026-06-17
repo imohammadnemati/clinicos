@@ -20,7 +20,7 @@ from telegram.ext import (
 )
 from config import (
     BOT_TOKEN, OWNER_TELEGRAM_ID, REDIS_URL, OPENROUTER_FREE_MODELS,
-    validate_openrouter_config, INITIAL_SCORES
+    validate_openrouter_config, INITIAL_SCORES, OPENAI_API_KEY   # <-- اضافه شد
 )
 from database import SessionLocal, init_db
 from models import (
@@ -240,7 +240,7 @@ async def main_menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     finally:
         db.close()
 
-# ========== Voice/Audio Handler (NEW) ==========
+# ========== Voice/Audio Handler ==========
 async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle voice messages and audio files, transcribe and process as text."""
     user_id = update.effective_user.id
@@ -256,24 +256,18 @@ async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE):
         file_id = audio.file_id
         media_type = "audio"
     else:
-        # Should not happen
         return
 
-    # Notify user that processing is starting
     await update.message.reply_text("🎤 در حال پردازش پیام صوتی شما... لطفاً چند لحظه صبر کنید.")
 
     try:
-        # Download file from Telegram
         file = await context.bot.get_file(file_id)
-        # Create temporary file with .ogg extension (Telegram voice messages are usually .ogg)
         with tempfile.NamedTemporaryFile(delete=False, suffix=".ogg") as tmp:
             tmp_path = tmp.name
         await file.download_to_drive(tmp_path)
 
-        # Transcribe
         transcript = await stt_service.transcribe_audio_file(tmp_path)
 
-        # Clean up temp file
         try:
             os.unlink(tmp_path)
         except Exception as e:
@@ -286,19 +280,17 @@ async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             return
 
-        # Now process the transcribed text
         db = SessionLocal()
         try:
             clinic_id = get_user_clinic_id(user_id, db)
-            # Use transcript as the raw_text, and also pass transcript separately
             await process_patient_message(
                 update,
                 context,
                 clinic_id,
                 "telegram",
                 str(user_id),
-                raw_text=transcript,          # This will be used as the message text
-                media_url=file.file_path,     # optional, can be None if not available
+                raw_text=transcript,
+                media_url=file.file_path,
                 media_type=media_type,
                 transcript=transcript,
                 db=db
@@ -673,7 +665,7 @@ def startup_diagnostics():
         logger.info("Redis configured. Scores will be persisted.")
     logger.info(f"Initial provider scores: {INITIAL_SCORES}")
     logger.info("LLM routing layer ready.")
-    # Check STT service
+    # Check STT service availability
     if not OPENAI_API_KEY:
         logger.warning("OPENAI_API_KEY not set. Voice messages will not be transcribed.")
 
@@ -735,7 +727,6 @@ def main():
         fallbacks=[CommandHandler('cancel', lambda u, c: u.message.reply_text("Cancelled"))],
     ))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, main_menu_handler))
-    # NEW: Voice & Audio handler
     app.add_handler(MessageHandler(filters.VOICE | filters.AUDIO, handle_voice))
     app.add_error_handler(error_handler)
 
