@@ -23,8 +23,9 @@ google-generativeai==0.3.2
 
 # Speech‑to‑Text
 pydub==0.25.1          # for audio format handling
+google-cloud-speech==2.23.0   # NEW: Google Cloud STT
 
-# Language Detection (NEW)
+# Language Detection
 langdetect==1.0.9
 
 # Utilities
