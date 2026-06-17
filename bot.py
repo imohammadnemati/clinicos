@@ -8,6 +8,8 @@ import logging
 import time
 import asyncio
 import requests
+import tempfile
+import os
 from datetime import datetime, timedelta
 from typing import Optional
 
@@ -30,8 +32,14 @@ from appointment_engine import create_appointment_request
 from kpi_engine import get_kpi_summary
 from scheduler import start_scheduler
 
+# Import STT service
+from stt_service import STTService
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# ========== Initialize STT Service ==========
+stt_service = STTService()
 
 # ========== Conversation States ==========
 LANG_SELECT = 1
@@ -231,6 +239,76 @@ async def main_menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await update.message.reply_text("❓ Unknown command. Use the menu.")
     finally:
         db.close()
+
+# ========== Voice/Audio Handler (NEW) ==========
+async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle voice messages and audio files, transcribe and process as text."""
+    user_id = update.effective_user.id
+    voice = update.message.voice
+    audio = update.message.audio
+    file_id = None
+    media_type = None
+
+    if voice:
+        file_id = voice.file_id
+        media_type = "voice"
+    elif audio:
+        file_id = audio.file_id
+        media_type = "audio"
+    else:
+        # Should not happen
+        return
+
+    # Notify user that processing is starting
+    await update.message.reply_text("🎤 در حال پردازش پیام صوتی شما... لطفاً چند لحظه صبر کنید.")
+
+    try:
+        # Download file from Telegram
+        file = await context.bot.get_file(file_id)
+        # Create temporary file with .ogg extension (Telegram voice messages are usually .ogg)
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".ogg") as tmp:
+            tmp_path = tmp.name
+        await file.download_to_drive(tmp_path)
+
+        # Transcribe
+        transcript = await stt_service.transcribe_audio_file(tmp_path)
+
+        # Clean up temp file
+        try:
+            os.unlink(tmp_path)
+        except Exception as e:
+            logger.warning(f"Could not delete temp file: {e}")
+
+        if not transcript:
+            await update.message.reply_text(
+                "❌ متأسفانه نتوانستم پیام صوتی شما را به متن تبدیل کنم. "
+                "لطفاً دوباره تلاش کنید یا به صورت متن پیام دهید."
+            )
+            return
+
+        # Now process the transcribed text
+        db = SessionLocal()
+        try:
+            clinic_id = get_user_clinic_id(user_id, db)
+            # Use transcript as the raw_text, and also pass transcript separately
+            await process_patient_message(
+                update,
+                context,
+                clinic_id,
+                "telegram",
+                str(user_id),
+                raw_text=transcript,          # This will be used as the message text
+                media_url=file.file_path,     # optional, can be None if not available
+                media_type=media_type,
+                transcript=transcript,
+                db=db
+            )
+        finally:
+            db.close()
+
+    except Exception as e:
+        logger.error(f"Error handling voice: {e}", exc_info=True)
+        await update.message.reply_text("❌ خطا در پردازش پیام صوتی. لطفاً دوباره تلاش کنید.")
 
 # ========== Appointment Wizard ==========
 async def start_appointment_booking(update: Update, context: ContextTypes.DEFAULT_TYPE, clinic_id: int):
@@ -583,21 +661,21 @@ async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 def startup_diagnostics():
     """Verify configuration and log provider status."""
     logger.info("=== ClinicOS Startup Diagnostics ===")
-    # Validate OpenRouter free models
     try:
         validate_openrouter_config()
         logger.info(f"OpenRouter free models: {OPENROUTER_FREE_MODELS}")
     except ValueError as e:
         logger.error(f"FATAL: OpenRouter configuration error – {e}")
         raise
-    # Check Redis availability (optional warning)
     if not REDIS_URL:
         logger.warning("REDIS_URL not set. Scores will NOT persist across restarts.")
     else:
         logger.info("Redis configured. Scores will be persisted.")
-    # Log initial provider scores (actual scores will be loaded from Redis at runtime)
     logger.info(f"Initial provider scores: {INITIAL_SCORES}")
     logger.info("LLM routing layer ready.")
+    # Check STT service
+    if not OPENAI_API_KEY:
+        logger.warning("OPENAI_API_KEY not set. Voice messages will not be transcribed.")
 
 # ========== Main Application ==========
 def main():
@@ -610,20 +688,20 @@ def main():
             resp = requests.get(f"https://api.telegram.org/bot{BOT_TOKEN}/deleteWebhook", timeout=10)
             if resp.status_code == 200:
                 logger.info(f"Webhook deleted (attempt {attempt+1})")
-                time.sleep(5)  # افزایش تأخیر به ۵ ثانیه برای جلوگیری از Conflict
+                time.sleep(5)
                 break
             else:
                 logger.warning(f"Delete webhook attempt {attempt+1} failed: {resp.text}")
         except Exception as e:
             logger.warning(f"Delete webhook attempt {attempt+1} error: {e}")
-        time.sleep(3)  # تأخیر بین تلاش‌ها
+        time.sleep(3)
     else:
         logger.error("Could not delete webhook after 5 attempts")
 
     app = Application.builder().token(BOT_TOKEN).build()
 
     async def startup(application):
-        await asyncio.sleep(3)  # extra delay to let webhook fully close
+        await asyncio.sleep(3)
         from scheduler import init_scheduler, get_scheduler
         init_scheduler()
         scheduler = get_scheduler()
@@ -657,9 +735,11 @@ def main():
         fallbacks=[CommandHandler('cancel', lambda u, c: u.message.reply_text("Cancelled"))],
     ))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, main_menu_handler))
+    # NEW: Voice & Audio handler
+    app.add_handler(MessageHandler(filters.VOICE | filters.AUDIO, handle_voice))
     app.add_error_handler(error_handler)
 
-    logger.info("🚀 ClinicOS bot started with production LLM routing layer")
+    logger.info("🚀 ClinicOS bot started with production LLM routing layer and Voice support")
     app.run_polling()
 
 if __name__ == "__main__":
