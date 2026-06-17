@@ -84,9 +84,12 @@ READONLY_MODE = os.getenv("READONLY_MODE", "False").lower() == "true"
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 LOG_FILE_PATH = os.getenv("LOG_FILE_PATH", "logs/clinic_brain.log")
 
-# ========== Speech-to-Text (NEW) ==========
-STT_PROVIDER = os.getenv("STT_PROVIDER", "openai")      # only "openai" supported now
-STT_MODEL = os.getenv("STT_MODEL", "whisper-1")
+# ========== Speech-to-Text ==========
+STT_PROVIDER = os.getenv("STT_PROVIDER", "openai")      # "openai" or "google"
+STT_MODEL = os.getenv("STT_MODEL", "whisper-1")         # for OpenAI; for Google, model is set internally
+# Google Cloud Speech-to-Text uses GOOGLE_APPLICATION_CREDENTIALS environment variable
+# Optionally, you can set GOOGLE_STT_LANGUAGE_CODE (default: "fa-IR")
+GOOGLE_STT_LANGUAGE_CODE = os.getenv("GOOGLE_STT_LANGUAGE_CODE", "fa-IR")
 
 # ========== Helper Functions ==========
 def validate_openrouter_config() -> None:
@@ -113,9 +116,9 @@ def get_config_summary() -> dict:
         "medical_safety_mode": MEDICAL_SAFETY_MODE,
         "readonly_mode": READONLY_MODE,
         "debug_mode": DEBUG_MODE,
-        # New STT settings
         "stt_provider": STT_PROVIDER,
         "stt_model": STT_MODEL,
+        "google_stt_language": GOOGLE_STT_LANGUAGE_CODE,
     }
 
 if __name__ == "__main__":
