@@ -29,8 +29,6 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
 
 # ========== OpenRouter Free Mode – Models ==========
-# This list is used by bot.py for startup diagnostics.
-# The provider will automatically fetch free models from OpenRouter API if this list is empty.
 OPENROUTER_FREE_MODELS = os.getenv("OPENROUTER_FREE_MODELS", "").split(",") if os.getenv("OPENROUTER_FREE_MODELS") else []
 
 # ========== LLM Base Scores (initial) ==========
@@ -38,7 +36,7 @@ INITIAL_SCORES = {
     "deepseek": 100,
     "gemini": 90,
     "openai": 70,
-    "openrouter": 50,      # intentionally low, used as fallback only
+    "openrouter": 50,
 }
 
 # ========== Scoring & Cooldown Rules ==========
@@ -50,11 +48,11 @@ CONSECUTIVE_FAILURES_THRESHOLD = 3
 COOLDOWN_SECONDS = 15 * 60   # 15 minutes
 
 # ========== Cost Manager (Quota Score) ==========
-DAILY_BUDGET = float(os.getenv("DAILY_BUDGET", "5.0"))        # dollars per day
-MONTHLY_BUDGET = float(os.getenv("MONTHLY_BUDGET", "50.0"))  # dollars per month
+DAILY_BUDGET = float(os.getenv("DAILY_BUDGET", "5.0"))
+MONTHLY_BUDGET = float(os.getenv("MONTHLY_BUDGET", "50.0"))
 FREE_PROVIDERS = ["openrouter"]
 
-# ========== Lead & Session (existing) ==========
+# ========== Lead & Session ==========
 LEAD_THRESHOLD = float(os.getenv("LEAD_THRESHOLD", "7.0"))
 SESSION_HOURS = int(os.getenv("SESSION_HOURS", "24"))
 ACTIVE_SESSION_GRACE_MINUTES = int(os.getenv("ACTIVE_SESSION_GRACE_MINUTES", "90"))
@@ -86,19 +84,16 @@ READONLY_MODE = os.getenv("READONLY_MODE", "False").lower() == "true"
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 LOG_FILE_PATH = os.getenv("LOG_FILE_PATH", "logs/clinic_brain.log")
 
+# ========== Speech-to-Text (NEW) ==========
+STT_PROVIDER = os.getenv("STT_PROVIDER", "openai")      # only "openai" supported now
+STT_MODEL = os.getenv("STT_MODEL", "whisper-1")
+
 # ========== Helper Functions ==========
 def validate_openrouter_config() -> None:
-    """
-    Validate OpenRouter configuration.
-    Raises ValueError if API key is missing.
-    """
     if not OPENROUTER_API_KEY:
         raise ValueError("OPENROUTER_API_KEY is not set. OpenRouter provider requires an API key.")
-    # Optionally, log the number of free models (if any)
-    # but we don't raise an error if the list is empty.
 
 def get_config_summary() -> dict:
-    """Return a summary of key configuration (without secrets)."""
     return {
         "bot_token_configured": bool(BOT_TOKEN),
         "owner_telegram_id": OWNER_TELEGRAM_ID,
@@ -118,6 +113,9 @@ def get_config_summary() -> dict:
         "medical_safety_mode": MEDICAL_SAFETY_MODE,
         "readonly_mode": READONLY_MODE,
         "debug_mode": DEBUG_MODE,
+        # New STT settings
+        "stt_provider": STT_PROVIDER,
+        "stt_model": STT_MODEL,
     }
 
 if __name__ == "__main__":
