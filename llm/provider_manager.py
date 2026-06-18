@@ -13,10 +13,9 @@ from .state_store import StateStore
 from .cost_manager import CostManager
 from llm.config import INITIAL_SCORES
 
-# Import all new providers
+# Import all active providers (Cohere removed)
 from llm.providers.groq_provider import GroqProvider
 from llm.providers.mistral_provider import MistralProvider
-from llm.providers.cohere_provider import CohereProvider
 from llm.providers.deepseek_provider import DeepSeekProvider
 from llm.providers.gemini_provider import GeminiProvider
 from llm.providers.openai_provider import OpenAIProvider
