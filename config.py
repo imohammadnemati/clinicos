@@ -29,10 +29,10 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
 
-# ========== New Providers ==========
+# ========== Active Providers ==========
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
 MISTRAL_API_KEY = os.getenv("MISTRAL_API_KEY", "")
-COHERE_API_KEY = os.getenv("COHERE_API_KEY", "")
+# COHERE_API_KEY removed
 
 # ========== OpenRouter Free Mode – Models ==========
 OPENROUTER_FREE_MODELS = os.getenv("OPENROUTER_FREE_MODELS", "").split(",") if os.getenv("OPENROUTER_FREE_MODELS") else []
@@ -43,8 +43,8 @@ INITIAL_SCORES = {
     "openrouter": 90,    # Free, multiple models
     "gemini": 85,        # Free, good quality
     "mistral": 85,       # Free, 5000/month
-    "cohere": 80,        # Free, 1000/day
     "openai": 40,        # Paid – last resort
+    # "cohere" removed
     # "deepseek" removed
 }
 
@@ -59,7 +59,7 @@ COOLDOWN_SECONDS = 15 * 60   # 15 minutes
 # ========== Cost Manager (Quota Score) ==========
 DAILY_BUDGET = float(os.getenv("DAILY_BUDGET", "5.0"))
 MONTHLY_BUDGET = float(os.getenv("MONTHLY_BUDGET", "50.0"))
-FREE_PROVIDERS = ["openrouter", "groq", "gemini", "mistral", "cohere"]  # all except openai
+FREE_PROVIDERS = ["openrouter", "groq", "gemini", "mistral"]  # all except openai
 
 # ========== Lead & Session ==========
 LEAD_THRESHOLD = float(os.getenv("LEAD_THRESHOLD", "7.0"))
@@ -113,7 +113,7 @@ def get_config_summary() -> dict:
         "openrouter_configured": bool(OPENROUTER_API_KEY),
         "groq_configured": bool(GROQ_API_KEY),
         "mistral_configured": bool(MISTRAL_API_KEY),
-        "cohere_configured": bool(COHERE_API_KEY),
+        "cohere_configured": False,  # removed
         "openrouter_free_models_count": len(OPENROUTER_FREE_MODELS),
         "initial_scores": INITIAL_SCORES,
         "lead_threshold": LEAD_THRESHOLD,
