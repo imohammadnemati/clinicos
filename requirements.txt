@@ -21,9 +21,10 @@ redis==5.0.1
 openai==1.3.0
 google-generativeai==0.3.2
 
-# Speech‑to‑Text
-pydub==0.25.1          # for audio format handling
-google-cloud-speech==2.23.0   # NEW: Google Cloud STT
+# Speech‑to‑Text (Local Whisper – FREE & OFFLINE)
+openai-whisper==20231117
+torch==2.1.0              # CPU version; Railway will handle it
+pydub==0.25.1             # for audio format handling (optional)
 
 # Language Detection
 langdetect==1.0.9
