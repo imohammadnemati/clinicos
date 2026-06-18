@@ -7,10 +7,20 @@ All state (scores, failures, cooldown) is stored in Redis via StateStore.
 
 import logging
 from typing import Dict, List, Optional
+
 from .base_provider import BaseLLMProvider
 from .state_store import StateStore
 from .cost_manager import CostManager
 from llm.config import INITIAL_SCORES
+
+# Import all new providers
+from llm.providers.groq_provider import GroqProvider
+from llm.providers.mistral_provider import MistralProvider
+from llm.providers.cohere_provider import CohereProvider
+from llm.providers.deepseek_provider import DeepSeekProvider
+from llm.providers.gemini_provider import GeminiProvider
+from llm.providers.openai_provider import OpenAIProvider
+from llm.providers.openrouter_provider import OpenRouterProvider
 
 logger = logging.getLogger(__name__)
 
