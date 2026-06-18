@@ -23,20 +23,29 @@ DEBUG_MODE = os.getenv("DEBUG_MODE", "False").lower() == "true"
 REDIS_URL = os.getenv("REDIS_URL", "")
 
 # ========== LLM Providers – API Keys ==========
-DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY", "")
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+# DeepSeek is removed – no longer used
+DEEPSEEK_API_KEY = ""  # intentionally left empty
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
+
+# ========== New Providers ==========
+GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
+MISTRAL_API_KEY = os.getenv("MISTRAL_API_KEY", "")
+COHERE_API_KEY = os.getenv("COHERE_API_KEY", "")
 
 # ========== OpenRouter Free Mode – Models ==========
 OPENROUTER_FREE_MODELS = os.getenv("OPENROUTER_FREE_MODELS", "").split(",") if os.getenv("OPENROUTER_FREE_MODELS") else []
 
 # ========== LLM Base Scores (initial) ==========
 INITIAL_SCORES = {
-    "deepseek": 100,
-    "gemini": 90,
-    "openai": 70,
-    "openrouter": 50,
+    "groq": 95,          # Free, super fast, LLaMA-3.1-70B
+    "openrouter": 90,    # Free, multiple models
+    "gemini": 85,        # Free, good quality
+    "mistral": 85,       # Free, 5000/month
+    "cohere": 80,        # Free, 1000/day
+    "openai": 40,        # Paid – last resort
+    # "deepseek" removed
 }
 
 # ========== Scoring & Cooldown Rules ==========
@@ -50,7 +59,7 @@ COOLDOWN_SECONDS = 15 * 60   # 15 minutes
 # ========== Cost Manager (Quota Score) ==========
 DAILY_BUDGET = float(os.getenv("DAILY_BUDGET", "5.0"))
 MONTHLY_BUDGET = float(os.getenv("MONTHLY_BUDGET", "50.0"))
-FREE_PROVIDERS = ["openrouter"]
+FREE_PROVIDERS = ["openrouter", "groq", "gemini", "mistral", "cohere"]  # all except openai
 
 # ========== Lead & Session ==========
 LEAD_THRESHOLD = float(os.getenv("LEAD_THRESHOLD", "7.0"))
@@ -85,8 +94,6 @@ LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 LOG_FILE_PATH = os.getenv("LOG_FILE_PATH", "logs/clinic_brain.log")
 
 # ========== Speech‑to‑Text (Local Whisper) ==========
-# Model options: "tiny", "base", "small", "medium", "large"
-# Choose "base" for best balance of speed/accuracy (~1GB RAM)
 WHISPER_MODEL_SIZE = os.getenv("WHISPER_MODEL_SIZE", "base")
 
 # ========== Helper Functions ==========
@@ -100,10 +107,13 @@ def get_config_summary() -> dict:
         "owner_telegram_id": OWNER_TELEGRAM_ID,
         "database_url": DATABASE_URL.split("://")[0],
         "redis_configured": bool(REDIS_URL),
-        "deepseek_configured": bool(DEEPSEEK_API_KEY),
-        "gemini_configured": bool(GEMINI_API_KEY),
+        "deepseek_configured": bool(DEEPSEEK_API_KEY),  # always False now
         "openai_configured": bool(OPENAI_API_KEY),
+        "gemini_configured": bool(GEMINI_API_KEY),
         "openrouter_configured": bool(OPENROUTER_API_KEY),
+        "groq_configured": bool(GROQ_API_KEY),
+        "mistral_configured": bool(MISTRAL_API_KEY),
+        "cohere_configured": bool(COHERE_API_KEY),
         "openrouter_free_models_count": len(OPENROUTER_FREE_MODELS),
         "initial_scores": INITIAL_SCORES,
         "lead_threshold": LEAD_THRESHOLD,
