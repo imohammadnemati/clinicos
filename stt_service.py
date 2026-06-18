@@ -47,6 +47,7 @@ class STTService:
 
         try:
             # Whisper runs synchronously – run in thread to avoid blocking the event loop
+            # Only pass arguments that are supported by the installed version (20231117)
             result = await asyncio.to_thread(
                 self.model.transcribe,
                 file_path,
@@ -63,8 +64,6 @@ class STTService:
                 word_timestamps=False,
                 prepend_punctuations="\"'“¿([{-",
                 append_punctuations="\"'.。，,！：:；?？、",
-                clip_timestamps=None,
-                hallucination_silence_threshold=None,
             )
             transcript = result.get("text", "").strip()
             if transcript:
