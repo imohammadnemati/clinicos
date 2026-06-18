@@ -1,14 +1,14 @@
 """
 Mistral AI Provider – Free tier (5000 requests/month).
 Uses the official Mistral async client (compatible with httpx~=0.25.2).
+No need for ChatMessage import – uses raw dict for messages.
 """
 
 import logging
 from typing import Optional
 
-# Import async client for Mistral AI (version 0.3.0)
+# Only import the async client – models are passed as dicts
 from mistralai.async_client import MistralAsyncClient
-from mistralai.models import ChatMessage
 
 from .base_provider import BaseLLMProvider
 from config import MISTRAL_API_KEY
@@ -29,10 +29,10 @@ class MistralProvider(BaseLLMProvider):
         max_tokens = kwargs.get("max_tokens", 500)
 
         try:
-            # Use the async client directly (no need for to_thread)
+            # Use dict for messages – no need for ChatMessage class
             response = await self.client.chat(
                 model=model,
-                messages=[ChatMessage(role="user", content=prompt)],
+                messages=[{"role": "user", "content": prompt}],
                 temperature=temperature,
                 max_tokens=max_tokens,
             )
