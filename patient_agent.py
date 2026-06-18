@@ -19,7 +19,6 @@ from config import (
     OPENROUTER_API_KEY,
     GROQ_API_KEY,
     MISTRAL_API_KEY,
-    COHERE_API_KEY,
 )
 from database import SessionLocal
 from models import (
@@ -55,7 +54,6 @@ from llm.providers.openai_provider import OpenAIProvider
 from llm.providers.openrouter_provider import OpenRouterProvider
 from llm.providers.groq_provider import GroqProvider
 from llm.providers.mistral_provider import MistralProvider
-from llm.providers.cohere_provider import CohereProvider
 
 logger = logging.getLogger(__name__)
 
@@ -98,10 +96,7 @@ if MISTRAL_API_KEY:
     providers["mistral"] = MistralProvider(api_key=MISTRAL_API_KEY)
     logger.info("Mistral AI provider enabled")
 
-# Cohere (NEW – free tier)
-if COHERE_API_KEY:
-    providers["cohere"] = CohereProvider(api_key=COHERE_API_KEY)
-    logger.info("Cohere provider enabled")
+# Cohere removed
 
 # Log summary
 logger.info(f"Available providers: {list(providers.keys())}")
