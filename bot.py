@@ -20,7 +20,7 @@ from telegram.ext import (
 )
 from config import (
     BOT_TOKEN, OWNER_TELEGRAM_ID, REDIS_URL, OPENROUTER_FREE_MODELS,
-    validate_openrouter_config, INITIAL_SCORES, OPENAI_API_KEY   # <-- اضافه شد
+    validate_openrouter_config, INITIAL_SCORES, OPENAI_API_KEY
 )
 from database import SessionLocal, init_db
 from models import (
@@ -258,7 +258,7 @@ async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         return
 
-    await update.message.reply_text("🎤 در حال پردازش پیام صوتی شما... لطفاً چند لحظه صبر کنید.")
+    # No initial "processing" message – user gets only final response
 
     try:
         file = await context.bot.get_file(file_id)
