@@ -2,7 +2,7 @@
 ClinicOS Telegram Bot – Final Production Version
 Supports: language selection, role‑based menus, appointment wizard,
 staff management, leads, escalations, and new LLM orchestration layer.
-Fully internationalized (i18n) – UI texts in Fa, En, Az, Ar.
+Fully internationalized (i18n) – UI texts in Fa, En, Az, Ar, Tr.
 Includes a "Change Language" button in the main menu.
 """
 
@@ -80,7 +80,7 @@ def get_user_language(user_id: int, db) -> str:
     patient = get_patient_by_telegram_id(user_id, db)
     if patient and patient.preferred_language:
         return patient.preferred_language
-    return None  # return None if not set
+    return None
 
 def set_user_language(user_id: int, lang: str, db):
     staff = db.query(Staff).filter_by(telegram_id=user_id).first()
@@ -114,7 +114,6 @@ def get_user_clinic_id(user_id: int, db) -> int:
 
 def get_main_keyboard(role: str, lang: str = "fa"):
     """Return dynamic keyboard with translated labels, including language change button."""
-    # Build buttons based on role
     if role == 'owner':
         buttons = [
             [get_text("btn_dashboard", lang), get_text("btn_staff", lang)],
@@ -138,7 +137,7 @@ def get_main_keyboard(role: str, lang: str = "fa"):
             [get_text("btn_ask_clinic", lang), get_text("btn_services", lang)],
             [get_text("btn_human_receptionist", lang), get_text("btn_my_appointments", lang)]
         ]
-    # Add a language change button at the bottom (always visible)
+    # Language change button at the bottom
     buttons.append([get_text("btn_change_language", lang)])
     return ReplyKeyboardMarkup(buttons, resize_keyboard=True)
 
@@ -178,18 +177,18 @@ def format_dashboard(role: str, clinic_id: int, db, user_id: int, lang: str = "f
 
 # ========== Language Change Function ==========
 async def change_language(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Show language selection inline keyboard (same as /start)."""
+    """Show language selection inline keyboard."""
     keyboard = [
         [InlineKeyboardButton(get_text("lang_fa", "fa"), callback_data="lang_fa")],
         [InlineKeyboardButton(get_text("lang_en", "fa"), callback_data="lang_en")],
         [InlineKeyboardButton(get_text("lang_az", "fa"), callback_data="lang_az")],
-        [InlineKeyboardButton(get_text("lang_ar", "fa"), callback_data="lang_ar")]
+        [InlineKeyboardButton(get_text("lang_ar", "fa"), callback_data="lang_ar")],
+        [InlineKeyboardButton(get_text("lang_tr", "fa"), callback_data="lang_tr")]
     ]
     await update.message.reply_text(
         get_text("lang_select_title", "fa"),
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
-    # We don't need to return a state; the callback will handle it.
 
 # ========== Conversation Handlers ==========
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -197,18 +196,16 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     db = SessionLocal()
     try:
-        # Get current language if exists, but we will always show selection anyway
-        lang = get_user_language(user_id, db)
-        # Just for debugging, not used here
+        lang = get_user_language(user_id, db)  # not used, but we could log
     finally:
         db.close()
 
-    # Show language selection (always)
     keyboard = [
         [InlineKeyboardButton(get_text("lang_fa", "fa"), callback_data="lang_fa")],
         [InlineKeyboardButton(get_text("lang_en", "fa"), callback_data="lang_en")],
         [InlineKeyboardButton(get_text("lang_az", "fa"), callback_data="lang_az")],
-        [InlineKeyboardButton(get_text("lang_ar", "fa"), callback_data="lang_ar")]
+        [InlineKeyboardButton(get_text("lang_ar", "fa"), callback_data="lang_ar")],
+        [InlineKeyboardButton(get_text("lang_tr", "fa"), callback_data="lang_tr")]
     ]
     await update.message.reply_text(
         get_text("lang_select_title", "fa"),
@@ -223,13 +220,11 @@ async def language_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     db = SessionLocal()
     try:
-        # Save language
         set_user_language(user_id, lang_code, db)
         role = get_user_role(user_id, db)
         clinic_id = get_user_clinic_id(user_id, db)
         welcome = get_text("lang_selected", lang_code)
         await query.edit_message_text(welcome)
-        # Show main menu in selected language
         await send_main_menu(update, context, role, clinic_id, db, user_id, lang_code)
     finally:
         db.close()
@@ -251,7 +246,6 @@ async def main_menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Ensure language is set; if not, force language selection
         lang = get_user_language(user_id, db)
         if not lang:
-            # If no language, redirect to start (language selection)
             await start(update, context)
             return
 
@@ -325,7 +319,7 @@ async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         return
 
-    # Get language (for error messages and STT)
+    # Get language for STT and error messages
     db = SessionLocal()
     try:
         lang = get_user_language(user_id, db) or "fa"
@@ -338,7 +332,6 @@ async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE):
             tmp_path = tmp.name
         await file.download_to_drive(tmp_path)
 
-        # Pass language to STT
         transcript = await stt_service.transcribe_audio_file(tmp_path, language=lang)
 
         try:
