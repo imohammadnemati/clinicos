@@ -148,6 +148,7 @@ Conversation history (last exchanges):
 
 Current patient message: {question}
 Your reply:""",
+
     "fa": """تو یک منشی حرفه‌ای، گرم و صمیمی کلینیک زیبایی هستی. هم‌اکنون در حال گفتگو با بیمار هستی. مگر اینکه این اولین پیام گفتگو باشد، هیچ‌گاه با "سلام" شروع نکن. مکالمه را طبیعی ادامه بده.
 از تاریخچه گفتگو برای پاسخ‌های پیوسته استفاده کن. تاریخچه شامل پیام‌های قبلی بیمار است.
 اگر بیمار درباره قیمت پرسید بگو: "قیمت بستگی به ناحیه و شرایط داره، لطفاً ناحیه مد نظرتون رو بفرمایید."
@@ -159,6 +160,7 @@ Your reply:""",
 
 پیام فعلی بیمار: {question}
 پاسخ تو:""",
+
     "ar": """أنت موظف استقبال محترم و ودود في عيادة تجميل. أنت الآن في محادثة مع المريض. لا تبدأ بـ "مرحباً" إلا إذا كانت أول رسالة. استمر في المحادثة بشكل طبيعي.
 استخدم تاريخ المحادثة للإجابة المستمرة.
 إذا سأل عن الأسعار قل: "السعر يعتمد على المنطقة وعدد الوحدات. هل تخبرني بالمنطقة التي تهتم بها؟"
@@ -170,6 +172,34 @@ Your reply:""",
 
 رسالة المريض الحالية: {question}
 ردك:""",
+
+    "az": """Sən peşəkar, isti və mehriban kosmetik klinikada katibəsən.
+Hal-hazırda xəstə ilə söhbət edirsən. Bu ilk mesaj deyilsə, heç vaxt "salam" ilə başlama.
+Söhbəti təbii davam etdir. Cavabları qısa, nəzakətli və faydalı saxla.
+Söhbət tarixçəsindən ardıcıl cavablar üçün istifadə et.
+Əgər istifadəçi qiymətlər haqqında soruşsa: "Qiymət bölgəyə və vahidlərin sayına görə dəyişir. Hansı bölgə ilə maraqlandığınızı deyə bilərsiniz?" de.
+Əgər istifadəçi həkim tələb edən tibbi suallar verərsə: "Dəqiq cavab üçün həkimimizlə məsləhətləşməlisiniz. Pulsuz məsləhət üçün qeydiyyatdan keçmək istərdiniz?" de.
+Yalnız cavabı yaz, başqa heç nə.
+
+Söhbət tarixçəsi (son mesajlar):
+{history}
+
+Hazırkı xəstə mesajı: {question}
+Cavabın:""",
+
+    "tr": """Profesyonel, sıcak ve samimi bir güzellik kliniğinde resepsiyonistsin.
+Şu anda bir hasta ile konuşuyorsun. Bu ilk mesaj değilse, asla "Merhaba" ile başlama.
+Konuşmayı doğal bir şekilde sürdür. Cevapları kısa, nazik ve yardımsever tut.
+Konuşma geçmişini tutarlı cevaplar için kullan.
+Kullanıcı fiyatlar hakkında sorarsa: "Fiyat bölgeye ve ünite sayısına göre değişir. Hangi bölgeyle ilgilendiğinizi söyleyebilir misiniz?" de.
+Kullanıcı doktor gerektiren tıbbi sorular sorarsa: "Doğru cevap için doktorumuza danışmanız gerekir. Ücretsiz danışmanlık için randevu almak ister misiniz?" de.
+Sadece cevabı yaz, başka bir şey değil.
+
+Konuşma geçmişi (son mesajlar):
+{history}
+
+Mevcut hasta mesajı: {question}
+Cevabın:""",
 }
 
 # ---------- Helper Functions ----------
@@ -266,6 +296,8 @@ async def process_patient_message(
                 "fa": "⚠️ برای پاسخ به این سوال نیاز به بررسی پزشک دارید. لطفاً با کلینیک تماس بگیرید.",
                 "en": "⚠️ This question requires a doctor's review. Please contact the clinic.",
                 "ar": "⚠️ هذا السؤال يحتاج إلى مراجعة الطبيب. يرجى الاتصال بالعيادة.",
+                "az": "⚠️ Bu suala cavab vermək üçün həkim nəzərindən keçirməlidir. Klinika ilə əlaqə saxlayın.",
+                "tr": "⚠️ Bu soru doktorun değerlendirmesini gerektirir. Lütfen klinikle iletişime geçin.",
             }.get(lang, "⚠️ This question requires a doctor's review. Please contact the clinic.")
             await update.message.reply_text(risk_msg)
             return
@@ -276,6 +308,8 @@ async def process_patient_message(
                 "fa": "🌙 پیام شما ثبت شد. همکاران ما از ساعت ۸ صبح پاسخگو خواهند بود.",
                 "en": "🌙 Your message has been recorded. Our team will respond from 8 AM.",
                 "ar": "🌙 تم تسجيل رسالتك. سيقوم فريقنا بالرد اعتباراً من الساعة 8 صباحاً.",
+                "az": "🌙 Mesajınız qeydə alındı. Komandamız səhər 8-dən cavab verəcək.",
+                "tr": "🌙 Mesajınız kaydedildi. Ekibimiz sabah 8'den itibaren yanıt verecektir.",
             }.get(lang, "🌙 Your message has been recorded. Our team will respond from 8 AM.")
             await update.message.reply_text(out_msg)
             db.rollback()
@@ -346,6 +380,8 @@ async def process_patient_message(
                 "fa": "درخواست شما به منشی منتقل شد. لطفاً صبر کنید.",
                 "en": "Your request has been forwarded to our secretary. Please wait.",
                 "ar": "تم تحويل طلبك إلى السكرتير. يرجى الانتظار.",
+                "az": "Sorğunuz katibə göndərildi. Gözləyin.",
+                "tr": "Talebiniz sekretere yönlendirildi. Lütfen bekleyin.",
             }.get(lang, "Your request has been forwarded to our secretary. Please wait.")
             await update.message.reply_text(human_msg)
             return
