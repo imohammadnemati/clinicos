@@ -79,7 +79,7 @@ def get_user_language(user_id: int, db) -> str:
     patient = get_patient_by_telegram_id(user_id, db)
     if patient and patient.preferred_language:
         return patient.preferred_language
-    return 'fa'
+    return None  # return None if not set
 
 def set_user_language(user_id: int, lang: str, db):
     staff = db.query(Staff).filter_by(telegram_id=user_id).first()
@@ -174,19 +174,17 @@ def format_dashboard(role: str, clinic_id: int, db, user_id: int, lang: str = "f
 
 # ========== Conversation Handlers ==========
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Always show language selection menu first."""
     user_id = update.effective_user.id
     db = SessionLocal()
     try:
+        # Get current language if exists, but we will always show selection anyway
         lang = get_user_language(user_id, db)
-        if lang:
-            role = get_user_role(user_id, db)
-            clinic_id = get_user_clinic_id(user_id, db)
-            await send_main_menu(update, context, role, clinic_id, db, user_id, lang)
-            return
+        # Just for debugging, not used here
     finally:
         db.close()
 
-    # Show language selection
+    # Show language selection (always)
     keyboard = [
         [InlineKeyboardButton(get_text("lang_fa", "fa"), callback_data="lang_fa")],
         [InlineKeyboardButton(get_text("lang_en", "fa"), callback_data="lang_en")],
@@ -206,11 +204,13 @@ async def language_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     db = SessionLocal()
     try:
+        # Save language
         set_user_language(user_id, lang_code, db)
         role = get_user_role(user_id, db)
         clinic_id = get_user_clinic_id(user_id, db)
         welcome = get_text("lang_selected", lang_code)
         await query.edit_message_text(welcome)
+        # Show main menu in selected language
         await send_main_menu(update, context, role, clinic_id, db, user_id, lang_code)
     finally:
         db.close()
@@ -229,9 +229,15 @@ async def main_menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     db = SessionLocal()
     try:
+        # Ensure language is set; if not, force language selection
+        lang = get_user_language(user_id, db)
+        if not lang:
+            # If no language, redirect to start (language selection)
+            await start(update, context)
+            return
+
         role = get_user_role(user_id, db)
         clinic_id = get_user_clinic_id(user_id, db)
-        lang = get_user_language(user_id, db)
 
         # Identify button presses using translated labels
         btn_home = get_text("btn_home", lang)
@@ -298,6 +304,8 @@ async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE):
     db = SessionLocal()
     try:
         lang = get_user_language(user_id, db)
+        if not lang:
+            lang = "fa"  # fallback
     finally:
         db.close()
 
@@ -365,6 +373,8 @@ async def appointment_service_callback(update: Update, context: ContextTypes.DEF
     db = SessionLocal()
     try:
         lang = get_user_language(user_id, db)
+        if not lang:
+            lang = "fa"
     finally:
         db.close()
 
@@ -373,9 +383,7 @@ async def appointment_service_callback(update: Update, context: ContextTypes.DEF
         return ConversationHandler.END
     service = data.split('_')[-1]
     context.user_data['booking_service'] = service
-    await query.edit_message_text(
-        f"{get_text('appt_enter_date', lang)}"
-    )
+    await query.edit_message_text(get_text("appt_enter_date", lang))
     return APPT_DATE
 
 async def appointment_date(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -384,6 +392,8 @@ async def appointment_date(update: Update, context: ContextTypes.DEFAULT_TYPE):
     db = SessionLocal()
     try:
         lang = get_user_language(user_id, db)
+        if not lang:
+            lang = "fa"
     finally:
         db.close()
 
@@ -402,6 +412,8 @@ async def appointment_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
     db = SessionLocal()
     try:
         lang = get_user_language(user_id, db)
+        if not lang:
+            lang = "fa"
     finally:
         db.close()
 
@@ -429,6 +441,8 @@ async def appointment_confirm_callback(update: Update, context: ContextTypes.DEF
     db = SessionLocal()
     try:
         lang = get_user_language(user_id, db)
+        if not lang:
+            lang = "fa"
     finally:
         db.close()
 
@@ -512,6 +526,8 @@ async def staff_menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
     db = SessionLocal()
     try:
         lang = get_user_language(user_id, db)
+        if not lang:
+            lang = "fa"
     finally:
         db.close()
 
@@ -522,7 +538,7 @@ async def staff_menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
         try:
             role = get_user_role(user_id, db)
             clinic_id = get_user_clinic_id(user_id, db)
-            lang = get_user_language(user_id, db)
+            lang = get_user_language(user_id, db) or "fa"
             await send_main_menu(update, context, role, clinic_id, db, user_id, lang)
         finally:
             db.close()
@@ -545,13 +561,15 @@ async def add_staff_id(update: Update, context: ContextTypes.DEFAULT_TYPE):
     db = SessionLocal()
     try:
         lang = get_user_language(user_id, db)
+        if not lang:
+            lang = "fa"
     finally:
         db.close()
 
     try:
         new_id = int(update.message.text.strip())
     except ValueError:
-        await update.message.reply_text("❌ شناسه باید عدد باشد. دوباره وارد کنید:")  # This one is not translated – can use get_text but it's simple.
+        await update.message.reply_text("❌ شناسه باید عدد باشد. دوباره وارد کنید:")
         return STAFF_ID
     context.user_data['new_staff_id'] = new_id
     await update.message.reply_text(
@@ -566,6 +584,8 @@ async def add_staff_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
     db = SessionLocal()
     try:
         lang = get_user_language(user_id, db)
+        if not lang:
+            lang = "fa"
     finally:
         db.close()
 
@@ -649,6 +669,8 @@ async def remove_staff_callback(update: Update, context: ContextTypes.DEFAULT_TY
     db = SessionLocal()
     try:
         lang = get_user_language(user_id, db)
+        if not lang:
+            lang = "fa"
     finally:
         db.close()
 
@@ -659,7 +681,7 @@ async def remove_staff_callback(update: Update, context: ContextTypes.DEFAULT_TY
         try:
             role = get_user_role(user_id, db)
             clinic_id = get_user_clinic_id(user_id, db)
-            lang = get_user_language(user_id, db)
+            lang = get_user_language(user_id, db) or "fa"
             await send_main_menu(update, context, role, clinic_id, db, user_id, lang)
         finally:
             db.close()
@@ -818,6 +840,8 @@ async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         db = SessionLocal()
         try:
             lang = get_user_language(user_id, db) if user_id else "fa"
+            if not lang:
+                lang = "fa"
         except:
             lang = "fa"
         finally:
