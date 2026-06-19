@@ -1,6 +1,7 @@
 """
 Speech-to-Text service for Clinicos.
 Uses local Whisper model (open-source) – no API key, no cost, offline.
+Supports dynamic language selection based on user's preferred language.
 """
 
 import os
@@ -8,11 +9,8 @@ import logging
 import asyncio
 from typing import Optional
 
-# Import whisper – will be installed via requirements.txt
 import whisper
-
-# Optional: set model size via environment variable (default: "base")
-WHISPER_MODEL_SIZE = os.getenv("WHISPER_MODEL_SIZE", "base")
+from config import WHISPER_MODEL_SIZE
 
 logger = logging.getLogger(__name__)
 
@@ -33,11 +31,16 @@ class STTService:
                 logger.error(f"Failed to load Whisper model: {e}")
                 self.model = None
 
-    async def transcribe_audio_file(self, file_path: str) -> Optional[str]:
+    async def transcribe_audio_file(self, file_path: str, language: str = "fa") -> Optional[str]:
         """
         Transcribe audio file using local Whisper.
         Supports all common formats (ogg, mp3, m4a, wav, etc.).
         Returns transcribed text or None on failure.
+
+        Args:
+            file_path: Path to the audio file.
+            language: User's preferred language code ('fa', 'en', 'az', 'ar', etc.).
+                      Maps to Whisper language codes.
         """
         if self.model is None:
             self._load_model()
@@ -45,14 +48,24 @@ class STTService:
                 logger.error("Whisper model not available. Check installation and memory.")
                 return None
 
+        # Map language codes to Whisper language codes
+        # Whisper supports many languages, we map our supported ones
+        lang_map = {
+            "fa": "fa",      # Persian
+            "en": "en",      # English
+            "ar": "ar",      # Arabic
+            "az": "az",      # Azerbaijani
+            "tr": "tr",      # Turkish (fallback for Azerbaijani if needed)
+        }
+        whisper_lang = lang_map.get(language, "fa")  # default to Persian
+
         try:
             # Whisper runs synchronously – run in thread to avoid blocking the event loop
-            # Only pass arguments that are supported by the installed version (20231117)
             result = await asyncio.to_thread(
                 self.model.transcribe,
                 file_path,
-                language="fa",         # force Persian; use "auto" for automatic detection
-                task="transcribe",     # standard transcription (not translation)
+                language=whisper_lang,
+                task="transcribe",
                 fp16=False,            # set to True if GPU available, False for CPU
                 verbose=False,
                 temperature=0.0,       # deterministic output
@@ -67,11 +80,11 @@ class STTService:
             )
             transcript = result.get("text", "").strip()
             if transcript:
-                logger.info(f"Local Whisper STT succeeded: {len(transcript)} characters")
+                logger.info(f"STT ({whisper_lang}) succeeded: {len(transcript)} characters")
                 return transcript
             else:
-                logger.warning("Local Whisper STT returned empty transcript")
+                logger.warning("STT returned empty transcript")
                 return None
         except Exception as e:
-            logger.error(f"Local Whisper STT error: {e}")
+            logger.error(f"STT error: {e}")
             return None
