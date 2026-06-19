@@ -1,6 +1,6 @@
 """
 Internationalization (i18n) module for Clinicos.
-All UI texts are stored here in 4 languages: fa, en, az, ar.
+All UI texts are stored here in 5 languages: fa, en, az, ar, tr.
 """
 
 TEXTS = {
@@ -12,6 +12,7 @@ TEXTS = {
         "lang_en": "🇺🇸 English",
         "lang_az": "🇦🇿 Azərbaycan",
         "lang_ar": "🇸🇦 العربية",
+        "lang_tr": "🇹🇷 Türkçe",
 
         # Welcome & dashboard
         "welcome_patient": "سلام {name} 🌷\nبه کلینیک خوش آمدید.",
@@ -26,6 +27,7 @@ TEXTS = {
         "btn_services": "📋 Services",
         "btn_human_receptionist": "👩‍💼 Human Receptionist",
         "btn_my_appointments": "📄 My Appointments",
+        "btn_change_language": "🔀 تغییر زبان",
 
         "btn_dashboard": "📊 Dashboard",
         "btn_staff": "👥 Staff",
@@ -146,6 +148,7 @@ TEXTS = {
         "lang_en": "🇺🇸 English",
         "lang_az": "🇦🇿 Azərbaycan",
         "lang_ar": "🇸🇦 العربية",
+        "lang_tr": "🇹🇷 Türkçe",
 
         "welcome_patient": "Hello {name} 🌷\nWelcome to our clinic.",
         "dashboard_owner": "📊 *Owner Dashboard*\n\n📅 *Today*: {leads} leads | {booked} booked | 💰 {revenue:,}",
@@ -158,6 +161,7 @@ TEXTS = {
         "btn_services": "📋 Services",
         "btn_human_receptionist": "👩‍💼 Human Receptionist",
         "btn_my_appointments": "📄 My Appointments",
+        "btn_change_language": "🔀 Change Language",
 
         "btn_dashboard": "📊 Dashboard",
         "btn_staff": "👥 Staff",
@@ -262,6 +266,7 @@ TEXTS = {
         "lang_en": "🇺🇸 English",
         "lang_az": "🇦🇿 Azərbaycan",
         "lang_ar": "🇸🇦 العربية",
+        "lang_tr": "🇹🇷 Türkçe",
 
         "welcome_patient": "Salam {name} 🌷\nKlinikamıza xoş gəldiniz.",
         "dashboard_owner": "📊 *Sahib paneli*\n\n📅 *Bu gün*: {leads} lead | {booked} qeydiyyat | 💰 {revenue:,}",
@@ -274,6 +279,7 @@ TEXTS = {
         "btn_services": "📋 Xidmətlər",
         "btn_human_receptionist": "👩‍💼 Operator",
         "btn_my_appointments": "📄 Qeydiyyatlarım",
+        "btn_change_language": "🔀 Dili dəyiş",
 
         "btn_dashboard": "📊 Panel",
         "btn_staff": "👥 İşçilər",
@@ -378,6 +384,7 @@ TEXTS = {
         "lang_en": "🇺🇸 English",
         "lang_az": "🇦🇿 Azərbaycan",
         "lang_ar": "🇸🇦 العربية",
+        "lang_tr": "🇹🇷 Türkçe",
 
         "welcome_patient": "مرحباً {name} 🌷\nأهلاً بك في عيادتنا.",
         "dashboard_owner": "📊 *لوحة المالك*\n\n📅 *اليوم*: {leads} عميل محتمل | {booked} حجز | 💰 {revenue:,}",
@@ -390,6 +397,7 @@ TEXTS = {
         "btn_services": "📋 الخدمات",
         "btn_human_receptionist": "👩‍💼 موظف استقبال",
         "btn_my_appointments": "📄 مواعيدي",
+        "btn_change_language": "🔀 تغيير اللغة",
 
         "btn_dashboard": "📊 لوحة التحكم",
         "btn_staff": "👥 الموظفون",
@@ -485,6 +493,124 @@ TEXTS = {
         "risk_alert": "⚠️ هذا السؤال يحتاج إلى مراجعة الطبيب. يرجى الاتصال بالعيادة.",
         "escalated_to_human": "تم تحويل طلبك إلى السكرتير. يرجى الانتظار.",
         "start_text": "مرحباً! 🌷 أهلاً بك في عيادتنا. كيف يمكنني مساعدتك اليوم؟",
+    },
+
+    "tr": {
+        "lang_select_title": "🌐 Lütfen dilinizi seçin:",
+        "lang_selected": "🎉 Hoş geldiniz! Diliniz kaydedildi.",
+        "lang_fa": "🇮🇷 فارسی",
+        "lang_en": "🇺🇸 English",
+        "lang_az": "🇦🇿 Azərbaycan",
+        "lang_ar": "🇸🇦 العربية",
+        "lang_tr": "🇹🇷 Türkçe",
+
+        "welcome_patient": "Merhaba {name} 🌷\nKliniğimize hoş geldiniz.",
+        "dashboard_owner": "📊 *Sahip Paneli*\n\n📅 *Bugün*: {leads} potansiyel müşteri | {booked} randevu | 💰 {revenue:,}",
+        "dashboard_secretary": "📋 *Sekreter Paneli*\n\n✉️ Mesajlar: {messages}\n🔥 Potansiyel Müşteriler: {leads}\n📅 Randevular: {appts}\n🚨 Yönlendirmeler: {esc}",
+        "dashboard_doctor": "👨‍⚕️ *Doktor Paneli*\n\n🚨 Bekleyen yönlendirmeler: {pending}",
+
+        "btn_home": "🏠 Ana Sayfa",
+        "btn_book_appointment": "📅 Randevu Al",
+        "btn_ask_clinic": "💬 Sor",
+        "btn_services": "📋 Hizmetler",
+        "btn_human_receptionist": "👩‍💼 İnsan Görevli",
+        "btn_my_appointments": "📄 Randevularım",
+        "btn_change_language": "🔀 Dili Değiştir",
+
+        "btn_dashboard": "📊 Panel",
+        "btn_staff": "👥 Personel",
+        "btn_clinic": "🏥 Klinik",
+        "btn_settings": "⚙️ Ayarlar",
+        "btn_revenue": "💰 Gelir",
+        "btn_reports": "📈 Raporlar",
+
+        "btn_today": "📅 Bugün",
+        "btn_patients": "👥 Hastalar",
+        "btn_escalations": "🚨 Yönlendirmeler",
+        "btn_performance": "📊 Performans",
+
+        "btn_appointments": "📅 Randevular",
+        "btn_leads": "🔥 Potansiyel Müşteriler",
+        "btn_notifications": "🔔 Bildirimler",
+        "btn_statistics": "📊 İstatistikler",
+        "btn_handoff": "👩‍💼 Görevliye Yönlendir",
+
+        "appt_select_service": "📅 Lütfen hizmeti seçin:",
+        "appt_service_botox": "Botox",
+        "appt_service_filler": "Filler",
+        "appt_service_laser": "Lazer",
+        "appt_service_mesotherapy": "Mezoterapi",
+        "appt_service_surgery": "Cerrahi",
+        "appt_cancel": "❌ İptal",
+        "appt_enter_date": "Lütfen tarihi girin (örnek: 2025-06-15):",
+        "appt_enter_time": "Lütfen saati girin (örnek: 15:30):",
+        "appt_confirm": "✅ Randevuyu onayla:\nHizmet: {service}\nTarih: {date}\nSaat: {time}\nBilgiler doğru mu?",
+        "appt_confirm_yes": "✅ Evet",
+        "appt_confirm_no": "❌ Hayır",
+        "appt_cancelled": "❌ Randevu iptal edildi.",
+        "appt_booking_success": "✅ Randevu talebiniz #{request_id} kaydedildi. Sekreter yakında onaylayacak.",
+        "appt_booking_error": "❌ Randevu hatası.",
+
+        "human_handoff_register_first": "Lütfen önce /start ile kaydolun.",
+        "human_handoff_sent": "👩‍💼 Talebiniz sekretere iletildi. Yakında yanıtlanacaktır.",
+        "human_handoff_alert": "🚨 Hasta {patient_name} sekreterle görüşmek istiyor.",
+
+        "staff_management_title": "👥 Personel Yönetimi",
+        "staff_add_doctor": "➕ Doktor Ekle",
+        "staff_add_secretary": "➕ Sekreter Ekle",
+        "staff_add_admin": "➕ Admin Ekle",
+        "staff_list": "📋 Personel Listesi",
+        "staff_remove": "🗑 Personel Sil",
+        "staff_back": "🔙 Geri",
+        "staff_enter_id": "Yeni {role} için Telegram ID girin:",
+        "staff_confirm_add": "{id} ID'li kullanıcıyı {role} olarak eklemek istediğinize emin misiniz? (evet/hayır)",
+        "staff_already_exists": "❌ Kullanıcı zaten mevcut.",
+        "staff_added": "✅ {id} ID'li kullanıcı {role} olarak eklendi.",
+        "staff_add_error": "❌ Kullanıcı eklenirken hata oluştu.",
+        "staff_list_empty": "Kayıtlı personel yok.",
+        "staff_list_title": "📋 *Personel Listesi*",
+        "staff_list_item": "🆔 {id} – {name} ({role})",
+        "staff_select_remove": "Silinecek personeli seçin:",
+        "staff_removed": "✅ {name} adlı personel silindi.",
+        "staff_not_found": "❌ Personel bulunamadı.",
+        "staff_remove_cancelled": "❌ İşlem iptal edildi.",
+
+        "leads_empty": "Yeni potansiyel müşteri yok.",
+        "leads_title": "🔥 *Yeni Potansiyel Müşteriler*",
+        "leads_item": "• {name} – {service} – Puan: {score}",
+
+        "doctor_today_empty": "📅 Bugün randevu yok.",
+        "doctor_today_title": "📅 *Bugünün Randevuları*",
+        "doctor_today_item": "• {name} – {service} – {time}",
+        "doctor_escalations_empty": "✅ Bekleyen yönlendirme yok.",
+        "doctor_escalations_title": "🚨 *Doktora Yönlendirmeler*",
+        "doctor_escalations_item": "• Hasta: {name}\n  Sebep: {reason}\n  Zaman: {time}\n",
+
+        "stats_today_title": "📊 *Bugünün İstatistikleri*",
+        "stats_messages": "✉️ Mesajlar: {messages}",
+        "stats_leads": "🔥 Potansiyel Müşteriler: {leads}",
+        "stats_appointments": "📅 Randevular: {appointments}",
+
+        "appointments_empty": "📅 Randevu bulunamadı.",
+        "appointments_title": "📅 *Randevu Listesi*",
+        "appointments_item": "• {name} – {service} – {date}",
+
+        "patient_appointments_register_first": "Lütfen önce /start kullanın.",
+        "patient_appointments_empty": "📄 Randevunuz yok.",
+        "patient_appointments_title": "📄 *Randevularınız*",
+        "patient_appointments_item": "• {service} – {date} – {status}",
+
+        "error_unknown_command": "❓ Bilinmeyen komut. Menüyü kullanın.",
+        "error_internal": "❌ İç hata. Lütfen daha sonra tekrar deneyin.",
+        "error_invalid_date": "❌ Geçersiz tarih formatı. YYYY-MM-DD kullanın:",
+        "error_invalid_time": "❌ Geçersiz saat formatı. Örnek: 15:30",
+        "error_stt_failed": "❌ Ses mesajınız metne dönüştürülemedi. Lütfen tekrar deneyin veya metin olarak gönderin.",
+        "error_voice_processing": "❌ Ses mesajı işlenirken hata oluştu. Lütfen tekrar deneyin.",
+
+        "out_of_hours": "🌙 Mesajınız kaydedildi. Ekibimiz sabah 8'den itibaren yanıt verecektir.",
+        "risk_alert": "⚠️ Bu soru doktorun değerlendirmesini gerektirir. Lütfen klinikle iletişime geçin.",
+        "escalated_to_human": "Talebiniz sekretere yönlendirildi. Lütfen bekleyin.",
+        "start_text": "Merhaba! 🌷 Kliniğimize hoş geldiniz. Size nasıl yardımcı olabilirim?",
     }
 }
 
