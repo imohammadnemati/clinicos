@@ -27,7 +27,6 @@ TEXTS = {
         "btn_human_receptionist": "👩‍💼 Human Receptionist",
         "btn_my_appointments": "📄 My Appointments",
 
-        # Staff/owner buttons
         "btn_dashboard": "📊 Dashboard",
         "btn_staff": "👥 Staff",
         "btn_clinic": "🏥 Clinic",
@@ -35,13 +34,11 @@ TEXTS = {
         "btn_revenue": "💰 Revenue",
         "btn_reports": "📈 Reports",
 
-        # Doctor buttons
         "btn_today": "📅 Today",
         "btn_patients": "👥 Patients",
         "btn_escalations": "🚨 Escalations",
         "btn_performance": "📊 Performance",
 
-        # Secretary buttons
         "btn_appointments": "📅 Appointments",
         "btn_leads": "🔥 Leads",
         "btn_notifications": "🔔 Notifications",
@@ -253,11 +250,8 @@ TEXTS = {
         "error_voice_processing": "❌ Error processing voice message. Please try again.",
 
         "out_of_hours": "🌙 Your message has been recorded. Our team will respond from 8 AM.",
-
         "risk_alert": "⚠️ This question requires a doctor's review. Please contact the clinic.",
-
         "escalated_to_human": "Your request has been forwarded to the receptionist. Please wait.",
-
         "start_text": "Hello! 🌷 Welcome to our clinic. How can I assist you today?",
     },
 
@@ -269,11 +263,112 @@ TEXTS = {
         "lang_az": "🇦🇿 Azərbaycan",
         "lang_ar": "🇸🇦 العربية",
 
-        # (برای اختصار، بقیه کلیدها مشابه انگلیسی با ترجمه ترکی – در صورت نیاز کامل شود)
-        # من در اینجا فقط چند کلید نمونه می‌نویسم تا ساختار مشخص باشد
         "welcome_patient": "Salam {name} 🌷\nKlinikamıza xoş gəldiniz.",
+        "dashboard_owner": "📊 *Sahib paneli*\n\n📅 *Bu gün*: {leads} lead | {booked} qeydiyyat | 💰 {revenue:,}",
+        "dashboard_secretary": "📋 *Katib paneli*\n\n✉️ Mesajlar: {messages}\n🔥 Leadlər: {leads}\n📅 Qeydiyyatlar: {appts}\n🚨 İstinadlar: {esc}",
+        "dashboard_doctor": "👨‍⚕️ *Həkim paneli*\n\n🚨 Gözləyən istinadlar: {pending}",
+
+        "btn_home": "🏠 Ana səhifə",
+        "btn_book_appointment": "📅 Qeydiyyat",
+        "btn_ask_clinic": "💬 Soruş",
+        "btn_services": "📋 Xidmətlər",
+        "btn_human_receptionist": "👩‍💼 Operator",
+        "btn_my_appointments": "📄 Qeydiyyatlarım",
+
+        "btn_dashboard": "📊 Panel",
+        "btn_staff": "👥 İşçilər",
+        "btn_clinic": "🏥 Klinika",
+        "btn_settings": "⚙️ Ayarlar",
+        "btn_revenue": "💰 Gəlir",
+        "btn_reports": "📈 Hesabatlar",
+
+        "btn_today": "📅 Bu gün",
+        "btn_patients": "👥 Xəstələr",
+        "btn_escalations": "🚨 İstinadlar",
+        "btn_performance": "📊 Performans",
+
+        "btn_appointments": "📅 Qeydiyyatlar",
+        "btn_leads": "🔥 Leadlər",
+        "btn_notifications": "🔔 Bildirişlər",
+        "btn_statistics": "📊 Statistikalar",
+        "btn_handoff": "👩‍💼 Operatora keç",
+
+        "appt_select_service": "📅 Xidmət seçin:",
+        "appt_service_botox": "Botox",
+        "appt_service_filler": "Filler",
+        "appt_service_laser": "Lazer",
+        "appt_service_mesotherapy": "Mezoterapiya",
+        "appt_service_surgery": "Cərrahiyyə",
+        "appt_cancel": "❌ Ləğv et",
+        "appt_enter_date": "Tarixi daxil edin (məsələn: 2025-06-15):",
+        "appt_enter_time": "Saati daxil edin (məsələn: 15:30):",
+        "appt_confirm": "✅ Təsdiq:\nXidmət: {service}\nTarix: {date}\nSaat: {time}\nDoğrudur?",
+        "appt_confirm_yes": "✅ Bəli",
+        "appt_confirm_no": "❌ Xeyr",
+        "appt_cancelled": "❌ Qeydiyyat ləğv edildi.",
+        "appt_booking_success": "✅ Sorğunuz #{request_id} qeydiyyata alındı. Katib yaxında təsdiqləyəcək.",
+        "appt_booking_error": "❌ Qeydiyyatda xəta.",
+
+        "human_handoff_register_first": "Zəhmət olmasa əvvəlcə /start ilə qeydiyyatdan keçin.",
+        "human_handoff_sent": "👩‍💼 Sorğunuz katibə göndərildi. Tezliklə cavablandırılacaq.",
+        "human_handoff_alert": "🚨 Xəstə {patient_name} katiblə danışmaq istəyir.",
+
+        "staff_management_title": "👥 İşçi idarəsi",
+        "staff_add_doctor": "➕ Həkim əlavə et",
+        "staff_add_secretary": "➕ Katib əlavə et",
+        "staff_add_admin": "➕ Admin əlavə et",
+        "staff_list": "📋 İşçi siyahısı",
+        "staff_remove": "🗑 İşçi sil",
+        "staff_back": "🔙 Geri",
+        "staff_enter_id": "Yeni {role} üçün Telegram ID daxil edin:",
+        "staff_confirm_add": "{id} ID-li istifadəçini {role} olaraq əlavə etmək istədiyinizə əminsiniz? (bəli/xeyr)",
+        "staff_already_exists": "❌ İstifadəçi artıq mövcuddur.",
+        "staff_added": "✅ {id} ID-li istifadəçi {role} olaraq əlavə edildi.",
+        "staff_add_error": "❌ İstifadəçi əlavə edilərkən xəta.",
+        "staff_list_empty": "Heç bir işçi qeydiyyata alınmayıb.",
+        "staff_list_title": "📋 *İşçi siyahısı*",
+        "staff_list_item": "🆔 {id} – {name} ({role})",
+        "staff_select_remove": "Silinəcək işçini seçin:",
+        "staff_removed": "✅ {name} adlı işçi silindi.",
+        "staff_not_found": "❌ İşçi tapılmadı.",
+        "staff_remove_cancelled": "❌ Əməliyyat ləğv edildi.",
+
+        "leads_empty": "Yeni lead yoxdur.",
+        "leads_title": "🔥 *Yeni leadlər*",
+        "leads_item": "• {name} – {service} – Bal: {score}",
+
+        "doctor_today_empty": "📅 Bu gün qeydiyyat yoxdur.",
+        "doctor_today_title": "📅 *Bu günün qeydiyyatları*",
+        "doctor_today_item": "• {name} – {service} – {time}",
+        "doctor_escalations_empty": "✅ Gözləyən istinad yoxdur.",
+        "doctor_escalations_title": "🚨 *Həkimə istinadlar*",
+        "doctor_escalations_item": "• Xəstə: {name}\n  Səbəb: {reason}\n  Vaxt: {time}\n",
+
+        "stats_today_title": "📊 *Bu günün statistikası*",
+        "stats_messages": "✉️ Mesajlar: {messages}",
+        "stats_leads": "🔥 Leadlər: {leads}",
+        "stats_appointments": "📅 Qeydiyyatlar: {appointments}",
+
+        "appointments_empty": "📅 Qeydiyyat tapılmadı.",
+        "appointments_title": "📅 *Qeydiyyat siyahısı*",
+        "appointments_item": "• {name} – {service} – {date}",
+
+        "patient_appointments_register_first": "Zəhmət olmasa əvvəlcə /start istifadə edin.",
+        "patient_appointments_empty": "📄 Sizin qeydiyyatınız yoxdur.",
+        "patient_appointments_title": "📄 *Sizin qeydiyyatlarınız*",
+        "patient_appointments_item": "• {service} – {date} – {status}",
+
         "error_unknown_command": "❓ Naməlum əmr. Menudan istifadə edin.",
-        # ... بقیه کلیدها به همین ترتیب
+        "error_internal": "❌ Daxili xəta. Bir neçə dəqiqə sonra yenidən cəhd edin.",
+        "error_invalid_date": "❌ Tarix formatı səhvdir. YYYY-MM-DD formatında daxil edin:",
+        "error_invalid_time": "❌ Saat formatı səhvdir. Nümunə: 15:30",
+        "error_stt_failed": "❌ Səs mesajınızı mətnə çevirə bilmədim. Zəhmət olmasa yenidən cəhd edin və ya mətn yazın.",
+        "error_voice_processing": "❌ Səs mesajı işlənərkən xəta. Yenidən cəhd edin.",
+
+        "out_of_hours": "🌙 Mesajınız qeydə alındı. Komandamız səhər 8-dən cavab verəcək.",
+        "risk_alert": "⚠️ Bu suala cavab vermək üçün həkim nəzərindən keçirməlidir. Klinika ilə əlaqə saxlayın.",
+        "escalated_to_human": "Sorğunuz katibə göndərildi. Gözləyin.",
+        "start_text": "Salam! 🌷 Klinikamıza xoş gəldiniz. Necə kömək edə bilərəm?",
     },
 
     "ar": {
@@ -283,9 +378,113 @@ TEXTS = {
         "lang_en": "🇺🇸 English",
         "lang_az": "🇦🇿 Azərbaycan",
         "lang_ar": "🇸🇦 العربية",
+
         "welcome_patient": "مرحباً {name} 🌷\nأهلاً بك في عيادتنا.",
+        "dashboard_owner": "📊 *لوحة المالك*\n\n📅 *اليوم*: {leads} عميل محتمل | {booked} حجز | 💰 {revenue:,}",
+        "dashboard_secretary": "📋 *لوحة السكرتير*\n\n✉️ الرسائل: {messages}\n🔥 العملاء المحتملين: {leads}\n📅 المواعيد: {appts}\n🚨 الإحالات: {esc}",
+        "dashboard_doctor": "👨‍⚕️ *لوحة الطبيب*\n\n🚨 الإحالات المعلقة: {pending}",
+
+        "btn_home": "🏠 الرئيسية",
+        "btn_book_appointment": "📅 حجز موعد",
+        "btn_ask_clinic": "💬 استفسر",
+        "btn_services": "📋 الخدمات",
+        "btn_human_receptionist": "👩‍💼 موظف استقبال",
+        "btn_my_appointments": "📄 مواعيدي",
+
+        "btn_dashboard": "📊 لوحة التحكم",
+        "btn_staff": "👥 الموظفون",
+        "btn_clinic": "🏥 العيادة",
+        "btn_settings": "⚙️ الإعدادات",
+        "btn_revenue": "💰 الإيرادات",
+        "btn_reports": "📈 التقارير",
+
+        "btn_today": "📅 اليوم",
+        "btn_patients": "👥 المرضى",
+        "btn_escalations": "🚨 الإحالات",
+        "btn_performance": "📊 الأداء",
+
+        "btn_appointments": "📅 المواعيد",
+        "btn_leads": "🔥 العملاء المحتملين",
+        "btn_notifications": "🔔 الإشعارات",
+        "btn_statistics": "📊 الإحصائيات",
+        "btn_handoff": "👩‍💼 تحويل لموظف",
+
+        "appt_select_service": "📅 الرجاء اختيار الخدمة:",
+        "appt_service_botox": "بوتوكس",
+        "appt_service_filler": "فيلر",
+        "appt_service_laser": "ليزر",
+        "appt_service_mesotherapy": "ميزوثيرابي",
+        "appt_service_surgery": "جراحة",
+        "appt_cancel": "❌ إلغاء",
+        "appt_enter_date": "الرجاء إدخال التاريخ المطلوب (مثال: 2025-06-15):",
+        "appt_enter_time": "الرجاء إدخال الوقت المطلوب (مثال: 15:30):",
+        "appt_confirm": "✅ تأكيد الموعد:\nالخدمة: {service}\nالتاريخ: {date}\nالوقت: {time}\nهل المعلومات صحيحة؟",
+        "appt_confirm_yes": "✅ نعم",
+        "appt_confirm_no": "❌ لا",
+        "appt_cancelled": "❌ تم إلغاء الموعد.",
+        "appt_booking_success": "✅ تم تسجيل طلب الموعد رقم {request_id}. سيقوم السكرتير بالتأكيد قريباً.",
+        "appt_booking_error": "❌ خطأ في حجز الموعد.",
+
+        "human_handoff_register_first": "الرجاء التسجيل أولاً عبر /start.",
+        "human_handoff_sent": "👩‍💼 تم تحويل طلبك إلى السكرتير. سيتم الرد قريباً.",
+        "human_handoff_alert": "🚨 طلب جديد للتحدث مع السكرتير من المريض {patient_name}",
+
+        "staff_management_title": "👥 إدارة الموظفين",
+        "staff_add_doctor": "➕ إضافة طبيب",
+        "staff_add_secretary": "➕ إضافة سكرتير",
+        "staff_add_admin": "➕ إضافة مدير",
+        "staff_list": "📋 قائمة الموظفين",
+        "staff_remove": "🗑 حذف موظف",
+        "staff_back": "🔙 رجوع",
+        "staff_enter_id": "الرجاء إدخال معرف Telegram الخاص بـ {role} الجديد:",
+        "staff_confirm_add": "هل أنت متأكد من إضافة المستخدم {id} كـ {role}؟ (نعم/لا)",
+        "staff_already_exists": "❌ المستخدم موجود بالفعل.",
+        "staff_added": "✅ تم إضافة المستخدم {id} كـ {role}.",
+        "staff_add_error": "❌ خطأ في إضافة المستخدم.",
+        "staff_list_empty": "لا يوجد موظفون مسجلون.",
+        "staff_list_title": "📋 *قائمة الموظفين*",
+        "staff_list_item": "🆔 {id} – {name} ({role})",
+        "staff_select_remove": "اختر الموظف المراد حذفه:",
+        "staff_removed": "✅ تم حذف الموظف {name}.",
+        "staff_not_found": "❌ لم يتم العثور على الموظف.",
+        "staff_remove_cancelled": "❌ تم إلغاء العملية.",
+
+        "leads_empty": "لا يوجد عملاء محتملون جدد.",
+        "leads_title": "🔥 *عملاء محتملون جدد*",
+        "leads_item": "• {name} – {service} – النقاط: {score}",
+
+        "doctor_today_empty": "📅 لا توجد مواعيد اليوم.",
+        "doctor_today_title": "📅 *مواعيد اليوم*",
+        "doctor_today_item": "• {name} – {service} – {time}",
+        "doctor_escalations_empty": "✅ لا توجد إحالات معلقة.",
+        "doctor_escalations_title": "🚨 *إحالات إلى الطبيب*",
+        "doctor_escalations_item": "• المريض: {name}\n  السبب: {reason}\n  الوقت: {time}\n",
+
+        "stats_today_title": "📊 *إحصائيات اليوم*",
+        "stats_messages": "✉️ الرسائل: {messages}",
+        "stats_leads": "🔥 العملاء المحتملين: {leads}",
+        "stats_appointments": "📅 المواعيد: {appointments}",
+
+        "appointments_empty": "📅 لم يتم العثور على مواعيد.",
+        "appointments_title": "📅 *قائمة المواعيد*",
+        "appointments_item": "• {name} – {service} – {date}",
+
+        "patient_appointments_register_first": "الرجاء استخدام /start أولاً.",
+        "patient_appointments_empty": "📄 ليس لديك مواعيد.",
+        "patient_appointments_title": "📄 *مواعيدك*",
+        "patient_appointments_item": "• {service} – {date} – {status}",
+
         "error_unknown_command": "❓ أمر غير معروف. استخدم القائمة.",
-        # ... بقیه کلیدها
+        "error_internal": "❌ خطأ داخلي. الرجاء المحاولة مرة أخرى لاحقاً.",
+        "error_invalid_date": "❌ تنسيق التاريخ غير صحيح. استخدم YYYY-MM-DD:",
+        "error_invalid_time": "❌ تنسيق الوقت غير صحيح. مثال: 15:30",
+        "error_stt_failed": "❌ لم أتمكن من تحويل رسالتك الصوتية إلى نص. حاول مرة أخرى أو أرسل نصاً.",
+        "error_voice_processing": "❌ خطأ في معالجة الرسالة الصوتية. حاول مرة أخرى.",
+
+        "out_of_hours": "🌙 تم تسجيل رسالتك. سيقوم فريقنا بالرد اعتباراً من الساعة 8 صباحاً.",
+        "risk_alert": "⚠️ هذا السؤال يحتاج إلى مراجعة الطبيب. يرجى الاتصال بالعيادة.",
+        "escalated_to_human": "تم تحويل طلبك إلى السكرتير. يرجى الانتظار.",
+        "start_text": "مرحباً! 🌷 أهلاً بك في عيادتنا. كيف يمكنني مساعدتك اليوم؟",
     }
 }
 
