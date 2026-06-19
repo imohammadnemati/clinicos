@@ -233,10 +233,8 @@ async def main_menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         elif text == '💬 Ask Clinic' and role == 'patient':
             await process_patient_message(update, None, clinic_id, "telegram", str(user_id), text, db=db)
         else:
-            if role == 'patient':
-                await process_patient_message(update, None, clinic_id, "telegram", str(user_id), text, db=db)
-            else:
-                await update.message.reply_text("❓ Unknown command. Use the menu.")
+            # For any role, if message doesn't match menu, treat as patient message
+            await process_patient_message(update, None, clinic_id, "telegram", str(user_id), text, db=db)
     finally:
         db.close()
 
