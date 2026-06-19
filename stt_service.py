@@ -39,7 +39,7 @@ class STTService:
 
         Args:
             file_path: Path to the audio file.
-            language: User's preferred language code ('fa', 'en', 'az', 'ar', etc.).
+            language: User's preferred language code ('fa', 'en', 'az', 'ar', 'tr', etc.).
                       Maps to Whisper language codes.
         """
         if self.model is None:
@@ -55,12 +55,13 @@ class STTService:
             "en": "en",      # English
             "ar": "ar",      # Arabic
             "az": "az",      # Azerbaijani
-            "tr": "tr",      # Turkish (fallback for Azerbaijani if needed)
+            "tr": "tr",      # Turkish
         }
         whisper_lang = lang_map.get(language, "fa")  # default to Persian
 
         try:
             # Whisper runs synchronously – run in thread to avoid blocking the event loop
+            # Only pass arguments supported by whisper version 20231117
             result = await asyncio.to_thread(
                 self.model.transcribe,
                 file_path,
