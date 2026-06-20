@@ -10,6 +10,7 @@ import asyncio
 import hashlib
 import logging
 from datetime import datetime
+from typing import Optional
 
 from config import (
     LEAD_THRESHOLD,
@@ -258,6 +259,7 @@ async def process_patient_message(
     media_type=None,
     transcript=None,
     db=None,
+    lang: Optional[str] = None,  # new parameter
 ):
     if db is None:
         db = SessionLocal()
@@ -267,7 +269,11 @@ async def process_patient_message(
             return
 
         user = update.effective_user
-        lang = detect_language(raw_text)
+        # Use provided language if given, otherwise detect from text
+        if lang is None:
+            lang = detect_language(raw_text)
+        # For consistency, also use the detected language for any further logic
+
         patient_id = get_or_create_patient(
             clinic_id, platform, external_user_id, user.username, user.full_name, raw_text
         )
