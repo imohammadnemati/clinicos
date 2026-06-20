@@ -1,15 +1,17 @@
 """
 Groq Provider – Free tier, OpenAI-compatible API.
 Super-fast inference on Groq's dedicated hardware.
+Uses centralized model configuration from config.py.
 """
 
 import asyncio
 import logging
 from openai import OpenAI
 from .base_provider import BaseLLMProvider
-from config import GROQ_API_KEY
+from config import GROQ_API_KEY, PROVIDER_MODELS
 
 logger = logging.getLogger(__name__)
+
 
 class GroqProvider(BaseLLMProvider):
     def __init__(self, api_key: str = None):
@@ -18,7 +20,8 @@ class GroqProvider(BaseLLMProvider):
             api_key=self.api_key,
             base_url="https://api.groq.com/openai/v1"
         )
-        self.default_model = "llama-3.1-70b-versatile"
+        # Read default model from centralized config, fallback to a known good model
+        self.default_model = PROVIDER_MODELS.get("groq", "llama-3.1-8b-instant")
 
     async def generate(self, prompt: str, **kwargs) -> str:
         model = kwargs.get("model", self.default_model)
