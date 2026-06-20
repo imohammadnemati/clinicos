@@ -1,17 +1,16 @@
 """
 Mistral AI Provider – Free tier (5000 requests/month).
 Uses the official Mistral async client (compatible with httpx~=0.25.2).
-No need for ChatMessage import – uses raw dict for messages.
+Uses centralized model configuration from config.py.
 """
 
 import logging
 from typing import Optional
 
-# Only import the async client – models are passed as dicts
 from mistralai.async_client import MistralAsyncClient
 
 from .base_provider import BaseLLMProvider
-from config import MISTRAL_API_KEY
+from config import MISTRAL_API_KEY, PROVIDER_MODELS
 
 logger = logging.getLogger(__name__)
 
@@ -19,9 +18,9 @@ logger = logging.getLogger(__name__)
 class MistralProvider(BaseLLMProvider):
     def __init__(self, api_key: Optional[str] = None):
         self.api_key = api_key or MISTRAL_API_KEY
-        # Initialize async client
         self.client = MistralAsyncClient(api_key=self.api_key)
-        self.default_model = "mistral-small-latest"  # Free tier compatible
+        # Read default model from centralized config
+        self.default_model = PROVIDER_MODELS.get("mistral", "mistral-small-latest")
 
     async def generate(self, prompt: str, **kwargs) -> str:
         model = kwargs.get("model", self.default_model)
