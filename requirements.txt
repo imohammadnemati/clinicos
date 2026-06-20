@@ -33,7 +33,11 @@ mistralai==0.3.0
 openai-whisper==20231117
 torch==2.1.0
 numpy<2.0                    # CRITICAL: سازگاری با torch و whisper
-pydub==0.25.1
+pydub==0.25.1                # برای پردازش فرمت‌های صوتی
+
+# ========== Audio Preprocessing (NEW) ==========
+noisereduce==3.0.1           # کاهش نویز پس‌زمینه
+scipy==1.11.4                # پردازش سیگنال (وابستگی noisereduce)
 
 # ============================================================
 # Language Detection
