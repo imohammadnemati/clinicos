@@ -34,17 +34,27 @@ GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
 MISTRAL_API_KEY = os.getenv("MISTRAL_API_KEY", "")
 # COHERE_API_KEY removed
 
+# ========== Provider Models – Centralized Configuration ==========
+# Update this dictionary if a model is deprecated or you want to switch.
+# Each provider's default model is read from here.
+PROVIDER_MODELS = {
+    "groq": "llama-3.1-8b-instant",              # or "mixtral-8x7b-32768"
+    "openrouter": "meta-llama/llama-3.1-8b-instruct:free",
+    "gemini": "gemini-1.5-pro",                  # or "gemini-1.5-flash"
+    "mistral": "mistral-small-latest",
+    "openai": "gpt-3.5-turbo",                   # or "gpt-4"
+}
+
 # ========== OpenRouter Free Mode – Models ==========
 OPENROUTER_FREE_MODELS = os.getenv("OPENROUTER_FREE_MODELS", "").split(",") if os.getenv("OPENROUTER_FREE_MODELS") else []
 
 # ========== LLM Base Scores (initial) ==========
 INITIAL_SCORES = {
-    "groq": 95,          # Free, super fast, LLaMA-3.1-70B
+    "groq": 95,          # Free, super fast
     "openrouter": 90,    # Free, multiple models
     "gemini": 85,        # Free, good quality
     "mistral": 85,       # Free, 5000/month
     "openai": 40,        # Paid – last resort
-    # "cohere" removed
     # "deepseek" removed
 }
 
@@ -96,6 +106,9 @@ LOG_FILE_PATH = os.getenv("LOG_FILE_PATH", "logs/clinic_brain.log")
 # ========== Speech‑to‑Text (Local Whisper) ==========
 WHISPER_MODEL_SIZE = os.getenv("WHISPER_MODEL_SIZE", "base")
 
+# ========== Gemini ==========
+GEMINI_MAX_TOKENS = int(os.getenv("GEMINI_MAX_TOKENS", "2048"))  # Ensure full responses
+
 # ========== Helper Functions ==========
 def validate_openrouter_config() -> None:
     if not OPENROUTER_API_KEY:
@@ -116,6 +129,7 @@ def get_config_summary() -> dict:
         "cohere_configured": False,  # removed
         "openrouter_free_models_count": len(OPENROUTER_FREE_MODELS),
         "initial_scores": INITIAL_SCORES,
+        "provider_models": PROVIDER_MODELS,
         "lead_threshold": LEAD_THRESHOLD,
         "session_hours": SESSION_HOURS,
         "max_recovery_attempts": MAX_RECOVERY_ATTEMPTS,
@@ -125,6 +139,7 @@ def get_config_summary() -> dict:
         "readonly_mode": READONLY_MODE,
         "debug_mode": DEBUG_MODE,
         "whisper_model_size": WHISPER_MODEL_SIZE,
+        "gemini_max_tokens": GEMINI_MAX_TOKENS,
     }
 
 if __name__ == "__main__":
