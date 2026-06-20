@@ -9,10 +9,10 @@ TEXTS = {
         "lang_select_title": "🌐 لطفاً زبان خود را انتخاب کنید:",
         "lang_selected": "🎉 خوش آمدید! زبان شما ثبت شد.",
         "lang_fa": "🇮🇷 فارسی",
-        "lang_en": "🇺🇸 English",
-        "lang_az": "🇦🇿 Azərbaycan",
-        "lang_ar": "🇸🇦 العربية",
-        "lang_tr": "🇹🇷 Türkçe",
+        "lang_en": "🇺🇸 انگلیسی",
+        "lang_az": "🇦🇿 آذربایجانی",
+        "lang_ar": "🇸🇦 عربی",
+        "lang_tr": "🇹🇷 ترکی استانبولی",
 
         # Welcome & dashboard
         "welcome_patient": "سلام {name} 🌷\nبه کلینیک خوش آمدید.",
@@ -20,32 +20,32 @@ TEXTS = {
         "dashboard_secretary": "📋 *داشبورد منشی*\n\n✉️ پیام‌ها: {messages}\n🔥 لیدها: {leads}\n📅 نوبت‌ها: {appts}\n🚨 ارجاعات: {esc}",
         "dashboard_doctor": "👨‍⚕️ *داشبورد پزشک*\n\n🚨 ارجاعات در انتظار: {pending}",
 
-        # Main menu buttons
-        "btn_home": "🏠 Home",
-        "btn_book_appointment": "📅 Book Appointment",
-        "btn_ask_clinic": "💬 Ask Clinic",
-        "btn_services": "📋 Services",
-        "btn_human_receptionist": "👩‍💼 Human Receptionist",
-        "btn_my_appointments": "📄 My Appointments",
+        # Main menu buttons - FULLY TRANSLATED TO PERSIAN
+        "btn_home": "🏠 صفحه اصلی",
+        "btn_book_appointment": "📅 رزرو نوبت",
+        "btn_ask_clinic": "💬 پرسش از کلینیک",
+        "btn_services": "📋 خدمات",
+        "btn_human_receptionist": "👩‍💼 منشی انسانی",
+        "btn_my_appointments": "📄 نوبت‌های من",
         "btn_change_language": "🔀 تغییر زبان",
 
-        "btn_dashboard": "📊 Dashboard",
-        "btn_staff": "👥 Staff",
-        "btn_clinic": "🏥 Clinic",
-        "btn_settings": "⚙️ Settings",
-        "btn_revenue": "💰 Revenue",
-        "btn_reports": "📈 Reports",
+        "btn_dashboard": "📊 داشبورد",
+        "btn_staff": "👥 کارمندان",
+        "btn_clinic": "🏥 کلینیک",
+        "btn_settings": "⚙️ تنظیمات",
+        "btn_revenue": "💰 درآمد",
+        "btn_reports": "📈 گزارش‌ها",
 
-        "btn_today": "📅 Today",
-        "btn_patients": "👥 Patients",
-        "btn_escalations": "🚨 Escalations",
-        "btn_performance": "📊 Performance",
+        "btn_today": "📅 امروز",
+        "btn_patients": "👥 بیماران",
+        "btn_escalations": "🚨 ارجاعات",
+        "btn_performance": "📊 عملکرد",
 
-        "btn_appointments": "📅 Appointments",
-        "btn_leads": "🔥 Leads",
-        "btn_notifications": "🔔 Notifications",
-        "btn_statistics": "📊 Statistics",
-        "btn_handoff": "👩‍💼 Handoff",
+        "btn_appointments": "📅 نوبت‌ها",
+        "btn_leads": "🔥 لیدها",
+        "btn_notifications": "🔔 اعلانات",
+        "btn_statistics": "📊 آمار",
+        "btn_handoff": "👩‍💼 انتقال به منشی",
 
         # Appointment wizard
         "appt_select_service": "📅 لطفاً خدمت مورد نظر را انتخاب کنید:",
@@ -71,12 +71,12 @@ TEXTS = {
 
         # Staff management
         "staff_management_title": "👥 مدیریت کارمندان",
-        "staff_add_doctor": "➕ Add Doctor",
-        "staff_add_secretary": "➕ Add Secretary",
-        "staff_add_admin": "➕ Add Admin",
-        "staff_list": "📋 Staff List",
-        "staff_remove": "🗑 Remove Staff",
-        "staff_back": "🔙 Back",
+        "staff_add_doctor": "➕ افزودن پزشک",
+        "staff_add_secretary": "➕ افزودن منشی",
+        "staff_add_admin": "➕ افزودن مدیر",
+        "staff_list": "📋 لیست کارمندان",
+        "staff_remove": "🗑 حذف کارمند",
+        "staff_back": "🔙 بازگشت",
         "staff_enter_id": "لطفاً شناسه تلگرام (Telegram ID) {role} جدید را وارد کنید:",
         "staff_confirm_add": "آیا از اضافه کردن کاربر {id} با نقش {role} مطمئن هستید؟ (بله/خیر)",
         "staff_already_exists": "❌ کاربر قبلاً ثبت شده است.",
@@ -138,7 +138,7 @@ TEXTS = {
         "escalated_to_human": "درخواست شما به منشی منتقل شد. لطفاً صبر کنید.",
 
         # Start command
-        "start_text": "Hello! 🌷 Welcome to our clinic. How can I assist you today?",
+        "start_text": "سلام! 🌷 به کلینیک خوش آمدید. چگونه می‌توانم کمکتان کنم؟",
     },
 
     "en": {
