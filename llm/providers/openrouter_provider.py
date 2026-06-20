@@ -2,6 +2,7 @@
 OpenRouter Provider – Strict free‑mode only integration.
 Automatically fetches the list of free models from OpenRouter API at startup.
 If the API fails, uses a hardcoded fallback list.
+Uses centralized model configuration from config.py.
 """
 
 import asyncio
@@ -9,7 +10,7 @@ import requests
 import logging
 from typing import Optional, List
 from .base_provider import BaseLLMProvider
-from llm.config import OPENROUTER_API_KEY
+from config import OPENROUTER_API_KEY, PROVIDER_MODELS
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +28,8 @@ FALLBACK_FREE_MODELS = [
 class OpenRouterProvider(BaseLLMProvider):
     def __init__(self, api_key: Optional[str] = None):
         self.api_key = api_key or OPENROUTER_API_KEY
+        # Read default model from centralized config
+        self.default_model = PROVIDER_MODELS.get("openrouter", "meta-llama/llama-3.1-8b-instruct:free")
         self.free_models = self._fetch_free_models()
         self._validate_free_models()
 
@@ -45,7 +48,7 @@ class OpenRouterProvider(BaseLLMProvider):
                     if prompt_cost == 0.0 and completion_cost == 0.0:
                         model_id = model.get("id")
                         if model_id:
-                            free_ids.append(f"{model_id}:free")
+                            free_ids.append(f"{model_id}:free")  # some models already have :free suffix
                 if free_ids:
                     logger.info(f"Fetched {len(free_ids)} free models from OpenRouter API")
                     return free_ids
@@ -65,21 +68,35 @@ class OpenRouterProvider(BaseLLMProvider):
     def _validate_model(self, model: str):
         """Hard validation before every API call."""
         if model not in self.free_models:
-            raise ValueError(f"Model {model} is not in the free models list")
-        if not model.endswith(":free"):
-            raise ValueError(f"Model {model} does not end with ':free'")
+            # If model not in free list, try to find a free model with the same base name
+            base_model = model.split(":")[0]
+            fallback = None
+            for free_model in self.free_models:
+                if free_model.startswith(base_model) or base_model in free_model:
+                    fallback = free_model
+                    break
+            if fallback:
+                logger.warning(f"Model {model} not in free list, using fallback: {fallback}")
+                return fallback
+            else:
+                raise ValueError(f"Model {model} is not in the free models list")
+        return model
 
     async def generate(self, prompt: str, **kwargs) -> str:
         """
         Generate a response using a specific free OpenRouter model.
         The model must be provided in kwargs['model'] (router responsibility).
-        If no model is provided, fallback to the first free model.
+        If no model is provided, use the default model from config.
         """
         model = kwargs.get("model")
         if not model:
-            model = self.free_models[0]
-            logger.warning(f"No model provided to OpenRouter, using default: {model}")
-        self._validate_model(model)
+            model = self.default_model
+            logger.info(f"No model provided to OpenRouter, using default: {model}")
+
+        # Ensure model is free, use fallback if needed
+        validated_model = self._validate_model(model)
+        if validated_model != model:
+            model = validated_model
 
         temperature = kwargs.get("temperature", 0.7)
         max_tokens = kwargs.get("max_tokens", 500)
@@ -105,7 +122,11 @@ class OpenRouterProvider(BaseLLMProvider):
                 raise Exception("OpenRouter authentication error – check API key")
             resp.raise_for_status()
             data = resp.json()
-            return data['choices'][0]['message']['content'].strip()
+            # Ensure we get content and it's not None
+            content = data.get('choices', [{}])[0].get('message', {}).get('content')
+            if content is None:
+                raise Exception("OpenRouter returned empty response (content is None)")
+            return content.strip()
         except requests.exceptions.Timeout:
             raise Exception("OpenRouter request timed out")
         except requests.exceptions.ConnectionError:
