@@ -35,8 +35,8 @@ torch==2.1.0
 numpy<2.0                    # CRITICAL: سازگاری با torch و whisper
 pydub==0.25.1                # برای پردازش فرمت‌های صوتی
 
-# ========== Audio Preprocessing (NEW) – corrected version ==========
-noisereduce==3.0.3           # نسخه موجود (3.0.1 موجود نیست)
+# ========== Audio Preprocessing – نسخه موجود ==========
+noisereduce==3.0.3           # اصلاح شد (نسخه 3.0.1 وجود ندارد)
 scipy==1.11.4                # پردازش سیگنال (وابستگی noisereduce)
 
 # ============================================================
