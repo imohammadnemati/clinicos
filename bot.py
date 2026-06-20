@@ -294,10 +294,10 @@ async def main_menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         elif text == btn_my_appointments and role == 'patient':
             await show_patient_appointments(update, context, lang)
         elif text == btn_ask and role == 'patient':
-            await process_patient_message(update, None, clinic_id, "telegram", str(user_id), text, db=db)
+            await process_patient_message(update, None, clinic_id, "telegram", str(user_id), text, db=db, lang=lang)
         else:
             # Treat as normal message for all roles
-            await process_patient_message(update, None, clinic_id, "telegram", str(user_id), text, db=db)
+            await process_patient_message(update, None, clinic_id, "telegram", str(user_id), text, db=db, lang=lang)
     finally:
         db.close()
 
@@ -356,7 +356,8 @@ async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 media_url=file.file_path,
                 media_type=media_type,
                 transcript=transcript,
-                db=db
+                db=db,
+                lang=lang
             )
         finally:
             db.close()
