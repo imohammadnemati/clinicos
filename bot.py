@@ -4,6 +4,9 @@ Supports: language selection, role‑based menus, appointment wizard,
 staff management, leads, escalations, and new LLM orchestration layer.
 Fully internationalized (i18n) – UI texts in Fa, En, Az, Ar, Tr.
 Includes a "Change Language" button in the main menu.
+
+STT: Unified service (Vosk + Whisper) with automatic fallback.
+Facial analysis: MediaPipe-based aesthetic suggestions.
 """
 
 import logging
@@ -34,15 +37,17 @@ from appointment_engine import create_appointment_request
 from kpi_engine import get_kpi_summary
 from scheduler import start_scheduler
 
-# Import STT service and i18n
-from stt_service import STTService
+# Import STT services (Unified) and facial analyzer
+from unified_stt import UnifiedSTTService
+from facial_analyzer import FacialAnalyzer
 from i18n import get_text
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# ========== Initialize STT Service ==========
-stt_service = STTService()
+# ========== Initialize Services ==========
+stt_service = UnifiedSTTService(primary_engine="auto")
+facial_analyzer = FacialAnalyzer()
 
 # ========== Conversation States ==========
 LANG_SELECT = 1
@@ -327,17 +332,28 @@ async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE):
         db.close()
 
     try:
+        # Download audio file
         file = await context.bot.get_file(file_id)
         with tempfile.NamedTemporaryFile(delete=False, suffix=".ogg") as tmp:
             tmp_path = tmp.name
         await file.download_to_drive(tmp_path)
 
-        transcript = await stt_service.transcribe_audio_file(tmp_path, language=lang)
+        # Convert to WAV for Vosk (and also keep original for Whisper)
+        from pydub import AudioSegment
+        audio_data = AudioSegment.from_file(tmp_path)
+        audio_data = audio_data.set_channels(1).set_frame_rate(16000).set_sample_width(2)
+        wav_path = tempfile.NamedTemporaryFile(delete=False, suffix=".wav").name
+        audio_data.export(wav_path, format="wav")
 
+        # Use unified STT (tries Vosk then Whisper)
+        transcript = await stt_service.transcribe_audio_file(wav_path, language=lang)
+
+        # Cleanup temp files
         try:
             os.unlink(tmp_path)
+            os.unlink(wav_path)
         except Exception as e:
-            logger.warning(f"Could not delete temp file: {e}")
+            logger.warning(f"Could not delete temp files: {e}")
 
         if not transcript:
             await update.message.reply_text(get_text("error_stt_failed", lang))
@@ -365,6 +381,44 @@ async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         logger.error(f"Error handling voice: {e}", exc_info=True)
         await update.message.reply_text(get_text("error_voice_processing", lang))
+
+# ========== Photo Handler (Facial Analysis) ==========
+async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Analyze uploaded photo for facial aesthetics."""
+    user_id = update.effective_user.id
+    # Get language
+    db = SessionLocal()
+    try:
+        lang = get_user_language(user_id, db) or "fa"
+    finally:
+        db.close()
+
+    # Get the largest photo (last in list)
+    photo = update.message.photo[-1]
+    file = await context.bot.get_file(photo.file_id)
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as tmp:
+        tmp_path = tmp.name
+    await file.download_to_drive(tmp_path)
+
+    # Analyze
+    result = facial_analyzer.analyze(tmp_path)
+
+    # Cleanup
+    try:
+        os.unlink(tmp_path)
+    except Exception as e:
+        logger.warning(f"Could not delete temp file: {e}")
+
+    if "error" in result:
+        await update.message.reply_text(get_text("facial_analysis_error", lang))
+        return
+
+    # Build response
+    msg = get_text("facial_analysis_title", lang) + "\n\n"
+    for suggestion in result["suggestions"]:
+        msg += "• " + suggestion + "\n"
+
+    await update.message.reply_text(msg)
 
 # ========== Appointment Wizard ==========
 async def start_appointment_booking(update: Update, context: ContextTypes.DEFAULT_TYPE,
@@ -928,9 +982,10 @@ def main():
     ))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, main_menu_handler))
     app.add_handler(MessageHandler(filters.VOICE | filters.AUDIO, handle_voice))
+    app.add_handler(MessageHandler(filters.PHOTO, handle_photo))  # New photo handler
     app.add_error_handler(error_handler)
 
-    logger.info("🚀 ClinicOS bot started with production LLM routing layer and Voice support")
+    logger.info("🚀 ClinicOS bot started with Unified STT, Voice, and Facial Analysis support")
     app.run_polling()
 
 if __name__ == "__main__":
