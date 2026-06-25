@@ -1,7 +1,7 @@
 """
 Speech-to-Text service using Vosk offline models.
 Supports: fa (small-fa-0.5), en (small-en-us-0.15), ar (ar-mgb2-0.4), tr (small-tr-0.3).
-Models are downloaded automatically during build via download_vosk_models.py.
+Models are downloaded automatically at runtime if not present.
 Audio must be mono 16kHz 16-bit PCM WAV format.
 """
 
@@ -13,9 +13,14 @@ from typing import Optional
 
 from vosk import Model, KaldiRecognizer
 
+# Import the download helper
+from download_vosk_models import ensure_model
+
 logger = logging.getLogger(__name__)
 
-# Model paths – these are the directories extracted from zip files
+# ============================================================
+# Model paths – these are the directories expected after extraction
+# ============================================================
 MODEL_PATHS = {
     "fa": "models/vosk/vosk-model-small-fa-0.5",        # Primary Persian model
     "fa_alt": "models/vosk/vosk-model-small-fa-0.42",   # Alternative Persian model
@@ -30,22 +35,38 @@ class VoskSTTService:
     def __init__(self):
         self.models = {}
         self._load_all_models()
-        self._log_model_status()
+
+    def _ensure_model_downloaded(self, path: str) -> bool:
+        """
+        Check if model directory exists and is non-empty.
+        If not, download it using ensure_model.
+        Returns True if model is available after the check.
+        """
+        if os.path.exists(path) and os.listdir(path):
+            return True
+
+        model_name = os.path.basename(path)
+        logger.info(f"Model {model_name} not found or empty. Downloading...")
+        success = ensure_model(model_name)
+        if success:
+            # Re-check existence after download
+            return os.path.exists(path) and os.listdir(path)
+        return False
 
     def _load_all_models(self):
-        """Load all available Vosk models."""
+        """Load all available Vosk models, downloading them if needed."""
         for lang_key, path in MODEL_PATHS.items():
-            if os.path.exists(path):
-                try:
-                    self.models[lang_key] = Model(path)
-                    logger.info(f"Vosk model loaded for '{lang_key}' from {path}")
-                except Exception as e:
-                    logger.error(f"Failed to load Vosk model for '{lang_key}': {e}")
-            else:
-                logger.warning(f"Vosk model for '{lang_key}' not found at {path}")
+            if not self._ensure_model_downloaded(path):
+                logger.warning(f"Model for '{lang_key}' could not be downloaded/loaded.")
+                continue
 
-    def _log_model_status(self):
-        """Log which models are available."""
+            try:
+                self.models[lang_key] = Model(path)
+                logger.info(f"Vosk model loaded for '{lang_key}' from {path}")
+            except Exception as e:
+                logger.error(f"Failed to load Vosk model for '{lang_key}': {e}")
+
+        # Log which models are available
         loaded = [k for k, v in self.models.items() if v is not None]
         if loaded:
             logger.info(f"Vosk models loaded: {', '.join(loaded)}")
