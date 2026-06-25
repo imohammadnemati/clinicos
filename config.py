@@ -1,10 +1,10 @@
 """
 ClinicOS – Central Configuration
-All environment variables are read here. No hardcoded secrets.
+Only Local LLM (TinyLlama) is enabled. No external API keys needed.
+All Voice/Photo features are disabled for testing.
 """
 
 import os
-import json
 from typing import List, Optional
 
 # ========== Telegram ==========
@@ -22,43 +22,20 @@ DEBUG_MODE = os.getenv("DEBUG_MODE", "False").lower() == "true"
 # ========== Redis ==========
 REDIS_URL = os.getenv("REDIS_URL", "")
 
-# ========== LLM Providers – API Keys ==========
-# DeepSeek is removed – no longer used
-DEEPSEEK_API_KEY = ""  # intentionally left empty
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
-OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
+# ========== Local LLM (TinyLlama) – runs on Railway itself ==========
+LOCAL_LLM_MODEL_REPO = os.getenv("LOCAL_LLM_MODEL_REPO", "TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF")
+LOCAL_LLM_MODEL_FILE = os.getenv("LOCAL_LLM_MODEL_FILE", "tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf")
+LOCAL_LLM_MODEL_PATH = os.getenv("LOCAL_LLM_MODEL_PATH", "models/local_llm.gguf")
+LOCAL_LLM_CONTEXT_SIZE = int(os.getenv("LOCAL_LLM_CONTEXT_SIZE", "2048"))
+LOCAL_LLM_THREADS = int(os.getenv("LOCAL_LLM_THREADS", "4"))
 
-# ========== Active Providers ==========
-GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
-MISTRAL_API_KEY = os.getenv("MISTRAL_API_KEY", "")
-# COHERE_API_KEY removed
-
-# ========== Provider Models – Centralized Configuration ==========
-# Update this dictionary if a model is deprecated or you want to switch.
-# Each provider's default model is read from here.
-PROVIDER_MODELS = {
-    "groq": "llama-3.1-8b-instant",              # or "mixtral-8x7b-32768"
-    "openrouter": "meta-llama/llama-3.1-8b-instruct:free",
-    "gemini": "gemini-1.5-pro",                  # or "gemini-1.5-flash"
-    "mistral": "mistral-small-latest",
-    "openai": "gpt-3.5-turbo",                   # or "gpt-4"
-}
-
-# ========== OpenRouter Free Mode – Models ==========
-OPENROUTER_FREE_MODELS = os.getenv("OPENROUTER_FREE_MODELS", "").split(",") if os.getenv("OPENROUTER_FREE_MODELS") else []
-
-# ========== LLM Base Scores (initial) ==========
+# ========== LLM Base Scores – only Local LLM ==========
 INITIAL_SCORES = {
-    "groq": 95,          # Free, super fast
-    "openrouter": 90,    # Free, multiple models
-    "gemini": 85,        # Free, good quality
-    "mistral": 85,       # Free, 5000/month
-    "openai": 40,        # Paid – last resort
-    # "deepseek" removed
+    "local": 100,
+    # All other providers are disabled
 }
 
-# ========== Scoring & Cooldown Rules ==========
+# ========== Scoring & Cooldown Rules (kept for compatibility) ==========
 SCORE_SUCCESS_INCREMENT = 1
 SCORE_FAILURE_PENALTY = 20
 MAX_SCORE = 200
@@ -66,10 +43,10 @@ MIN_SCORE = 0
 CONSECUTIVE_FAILURES_THRESHOLD = 3
 COOLDOWN_SECONDS = 15 * 60   # 15 minutes
 
-# ========== Cost Manager (Quota Score) ==========
+# ========== Cost Manager (unused now, but kept) ==========
 DAILY_BUDGET = float(os.getenv("DAILY_BUDGET", "5.0"))
 MONTHLY_BUDGET = float(os.getenv("MONTHLY_BUDGET", "50.0"))
-FREE_PROVIDERS = ["openrouter", "groq", "gemini", "mistral"]  # all except openai
+FREE_PROVIDERS = ["local"]
 
 # ========== Lead & Session ==========
 LEAD_THRESHOLD = float(os.getenv("LEAD_THRESHOLD", "7.0"))
@@ -103,33 +80,17 @@ READONLY_MODE = os.getenv("READONLY_MODE", "False").lower() == "true"
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 LOG_FILE_PATH = os.getenv("LOG_FILE_PATH", "logs/clinic_brain.log")
 
-# ========== Speech‑to‑Text (Local Whisper) ==========
-WHISPER_MODEL_SIZE = os.getenv("WHISPER_MODEL_SIZE", "base")
-
-# ========== Gemini ==========
-GEMINI_MAX_TOKENS = int(os.getenv("GEMINI_MAX_TOKENS", "2048"))  # Ensure full responses
-
 # ========== Helper Functions ==========
-def validate_openrouter_config() -> None:
-    if not OPENROUTER_API_KEY:
-        raise ValueError("OPENROUTER_API_KEY is not set. OpenRouter provider requires an API key.")
-
 def get_config_summary() -> dict:
+    """Return a summary of key configuration (without secrets)."""
     return {
         "bot_token_configured": bool(BOT_TOKEN),
         "owner_telegram_id": OWNER_TELEGRAM_ID,
         "database_url": DATABASE_URL.split("://")[0],
         "redis_configured": bool(REDIS_URL),
-        "deepseek_configured": bool(DEEPSEEK_API_KEY),  # always False now
-        "openai_configured": bool(OPENAI_API_KEY),
-        "gemini_configured": bool(GEMINI_API_KEY),
-        "openrouter_configured": bool(OPENROUTER_API_KEY),
-        "groq_configured": bool(GROQ_API_KEY),
-        "mistral_configured": bool(MISTRAL_API_KEY),
-        "cohere_configured": False,  # removed
-        "openrouter_free_models_count": len(OPENROUTER_FREE_MODELS),
+        "local_llm_model": LOCAL_LLM_MODEL_FILE,
+        "local_llm_threads": LOCAL_LLM_THREADS,
         "initial_scores": INITIAL_SCORES,
-        "provider_models": PROVIDER_MODELS,
         "lead_threshold": LEAD_THRESHOLD,
         "session_hours": SESSION_HOURS,
         "max_recovery_attempts": MAX_RECOVERY_ATTEMPTS,
@@ -138,13 +99,11 @@ def get_config_summary() -> dict:
         "medical_safety_mode": MEDICAL_SAFETY_MODE,
         "readonly_mode": READONLY_MODE,
         "debug_mode": DEBUG_MODE,
-        "whisper_model_size": WHISPER_MODEL_SIZE,
-        "gemini_max_tokens": GEMINI_MAX_TOKENS,
     }
 
 if __name__ == "__main__":
     print("=" * 50)
-    print("ClinicOS Configuration Summary")
+    print("ClinicOS Configuration Summary (Local LLM Only)")
     print("=" * 50)
     for k, v in get_config_summary().items():
         print(f"{k}: {v}")
