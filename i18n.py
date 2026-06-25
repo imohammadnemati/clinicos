@@ -120,6 +120,10 @@ TEXTS = {
         "patient_appointments_title": "📄 *نوبت‌های شما*",
         "patient_appointments_item": "• {service} – {date} – {status}",
 
+        # Facial analysis
+        "facial_analysis_title": "🔍 تحلیل چهره",
+        "facial_analysis_error": "❌ خطا در تحلیل تصویر. لطفاً عکس واضحی از صورت ارسال کنید.",
+
         # Errors
         "error_unknown_command": "❓ دستور ناشناخته. از منو استفاده کنید.",
         "error_internal": "❌ خطای داخلی. لطفاً دقایقی دیگر تلاش کنید.",
@@ -246,6 +250,10 @@ TEXTS = {
         "patient_appointments_title": "📄 *Your Appointments*",
         "patient_appointments_item": "• {service} – {date} – {status}",
 
+        # Facial analysis
+        "facial_analysis_title": "🔍 Facial Analysis",
+        "facial_analysis_error": "❌ Error analyzing image. Please send a clear face photo.",
+
         "error_unknown_command": "❓ Unknown command. Use the menu.",
         "error_internal": "❌ Internal error. Please try again later.",
         "error_invalid_date": "❌ Invalid date format. Please use YYYY-MM-DD:",
@@ -363,6 +371,9 @@ TEXTS = {
         "patient_appointments_empty": "📄 Sizin qeydiyyatınız yoxdur.",
         "patient_appointments_title": "📄 *Sizin qeydiyyatlarınız*",
         "patient_appointments_item": "• {service} – {date} – {status}",
+
+        "facial_analysis_title": "🔍 Üz analizi",
+        "facial_analysis_error": "❌ Şəkil analiz edilərkən xəta. Zəhmət olmasa üzün aydın fotosunu göndərin.",
 
         "error_unknown_command": "❓ Naməlum əmr. Menudan istifadə edin.",
         "error_internal": "❌ Daxili xəta. Bir neçə dəqiqə sonra yenidən cəhd edin.",
@@ -482,6 +493,9 @@ TEXTS = {
         "patient_appointments_title": "📄 *مواعيدك*",
         "patient_appointments_item": "• {service} – {date} – {status}",
 
+        "facial_analysis_title": "🔍 تحليل الوجه",
+        "facial_analysis_error": "❌ خطأ في تحليل الصورة. يرجى إرسال صورة واضحة للوجه.",
+
         "error_unknown_command": "❓ أمر غير معروف. استخدم القائمة.",
         "error_internal": "❌ خطأ داخلي. الرجاء المحاولة مرة أخرى لاحقاً.",
         "error_invalid_date": "❌ تنسيق التاريخ غير صحيح. استخدم YYYY-MM-DD:",
@@ -599,6 +613,9 @@ TEXTS = {
         "patient_appointments_empty": "📄 Randevunuz yok.",
         "patient_appointments_title": "📄 *Randevularınız*",
         "patient_appointments_item": "• {service} – {date} – {status}",
+
+        "facial_analysis_title": "🔍 Yüz Analizi",
+        "facial_analysis_error": "❌ Görüntü analiz edilirken hata oluştu. Lütfen net bir yüz fotoğrafı gönderin.",
 
         "error_unknown_command": "❓ Bilinmeyen komut. Menüyü kullanın.",
         "error_internal": "❌ İç hata. Lütfen daha sonra tekrar deneyin.",
