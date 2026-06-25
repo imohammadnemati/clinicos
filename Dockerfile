@@ -1,6 +1,6 @@
 # ============================================================
 # Clinicos – Dockerfile for Railway Deployment
-# Local LLM only (TinyLlama) – no external APIs, no Voice/Photo
+# ONLY Local LLM (TinyLlama) – NO Voice, NO STT, NO Vosk, NO Whisper
 # ============================================================
 
 FROM python:3.11-slim
@@ -11,14 +11,12 @@ FROM python:3.11-slim
 WORKDIR /app
 
 # ============================================================
-# Install system dependencies
-# Required for: llama-cpp-python (compilation), audio (optional),
-#               downloading models (wget, unzip)
+# Install ONLY essential system dependencies
+# Required for: llama-cpp-python (compilation) + model download
 # ============================================================
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     g++ \
-    ffmpeg \
     wget \
     unzip \
     curl \
@@ -31,7 +29,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY requirements.txt .
 
 # ============================================================
-# Install Python dependencies
+# Install Python dependencies (NO STT, NO Vosk, NO Whisper)
 # ============================================================
 RUN pip install --no-cache-dir --no-build-isolation -r requirements.txt
 
@@ -41,12 +39,10 @@ RUN pip install --no-cache-dir --no-build-isolation -r requirements.txt
 COPY . .
 
 # ============================================================
-# Set environment variables (can be overridden in Railway)
+# Set environment variables for Local LLM
 # ============================================================
 ENV PYTHONUNBUFFERED=1
 ENV LOCAL_LLM_THREADS=4
-ENV LOCAL_LLM_MODEL_REPO="TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF"
-ENV LOCAL_LLM_MODEL_FILE="tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf"
 
 # ============================================================
 # Expose port (Telegram webhook not used, kept for compatibility)
