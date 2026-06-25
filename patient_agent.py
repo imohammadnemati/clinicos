@@ -2,6 +2,8 @@
 ClinicOS – Patient Message Agent
 Core business logic: processes incoming patient messages, manages conversation state,
 patient memory, lead scoring, and invokes the LLM router for AI responses.
+
+ONLY Local LLM (TinyLlama) is enabled. No external APIs.
 """
 
 import json
@@ -14,12 +16,7 @@ from typing import Optional
 
 from config import (
     LEAD_THRESHOLD,
-    DEEPSEEK_API_KEY,
-    GEMINI_API_KEY,
-    OPENAI_API_KEY,
-    OPENROUTER_API_KEY,
-    GROQ_API_KEY,
-    MISTRAL_API_KEY,
+    # No external API keys are imported
 )
 from database import SessionLocal
 from models import (
@@ -44,17 +41,13 @@ from language_detector import detect_language
 from medical_safety import check_medical_risk
 from working_hours import can_auto_reply
 
-# Import the new LLM router and its dependencies
+# Import the LLM router and its dependencies
 from llm.provider_router import ProviderRouter
 from llm.provider_manager import ProviderManager
 from llm.state_store import StateStore
 from llm.cost_manager import CostManager
-from llm.providers.deepseek_provider import DeepSeekProvider
-from llm.providers.gemini_provider import GeminiProvider
-from llm.providers.openai_provider import OpenAIProvider
-from llm.providers.openrouter_provider import OpenRouterProvider
-from llm.providers.groq_provider import GroqProvider
-from llm.providers.mistral_provider import MistralProvider
+# Only Local LLM provider is used
+from llm.providers.local_llm_provider import LocalLLMProvider
 
 logger = logging.getLogger(__name__)
 
@@ -62,45 +55,10 @@ logger = logging.getLogger(__name__)
 _state_store = StateStore()
 _cost_manager = CostManager()
 
-# Build provider instances – only include providers with valid API keys
+# Build provider instances – ONLY local LLM
 providers = {}
-
-# DeepSeek – only if API key is present (but we recommend removing it)
-if DEEPSEEK_API_KEY:
-    providers["deepseek"] = DeepSeekProvider(api_key=DEEPSEEK_API_KEY)
-    logger.info("DeepSeek provider enabled (deprecated – consider removing)")
-else:
-    logger.info("DeepSeek provider disabled (no API key)")
-
-# Gemini
-if GEMINI_API_KEY:
-    providers["gemini"] = GeminiProvider(api_key=GEMINI_API_KEY)
-    logger.info("Gemini provider enabled")
-
-# OpenAI – last resort (paid)
-if OPENAI_API_KEY:
-    providers["openai"] = OpenAIProvider(api_key=OPENAI_API_KEY)
-    logger.info("OpenAI provider enabled (paid – last resort)")
-
-# OpenRouter
-if OPENROUTER_API_KEY:
-    providers["openrouter"] = OpenRouterProvider(api_key=OPENROUTER_API_KEY)
-    logger.info("OpenRouter provider enabled")
-
-# Groq (NEW – free, super fast)
-if GROQ_API_KEY:
-    providers["groq"] = GroqProvider(api_key=GROQ_API_KEY)
-    logger.info("Groq provider enabled")
-
-# Mistral AI (NEW – free tier)
-if MISTRAL_API_KEY:
-    providers["mistral"] = MistralProvider(api_key=MISTRAL_API_KEY)
-    logger.info("Mistral AI provider enabled")
-
-# Cohere removed
-
-# Log summary
-logger.info(f"Available providers: {list(providers.keys())}")
+providers["local"] = LocalLLMProvider()
+logger.info("✅ Local LLM provider enabled (only provider)")
 
 _provider_manager = ProviderManager(
     providers=providers,
@@ -259,7 +217,7 @@ async def process_patient_message(
     media_type=None,
     transcript=None,
     db=None,
-    lang: Optional[str] = None,  # new parameter
+    lang: Optional[str] = None,
 ):
     if db is None:
         db = SessionLocal()
@@ -269,10 +227,8 @@ async def process_patient_message(
             return
 
         user = update.effective_user
-        # Use provided language if given, otherwise detect from text
         if lang is None:
             lang = detect_language(raw_text)
-        # For consistency, also use the detected language for any further logic
 
         patient_id = get_or_create_patient(
             clinic_id, platform, external_user_id, user.username, user.full_name, raw_text
