@@ -1,12 +1,12 @@
 """
 ClinicOS Telegram Bot – Final Production Version
 Supports: language selection, role‑based menus, appointment wizard,
-staff management, leads, escalations, and new LLM orchestration layer.
+staff management, leads, escalations, and LLM orchestration (Local LLM).
 Fully internationalized (i18n) – UI texts in Fa, En, Az, Ar, Tr.
 Includes a "Change Language" button in the main menu.
 
-STT: Unified service (Vosk + Whisper) with automatic fallback.
-Facial analysis: MediaPipe-based aesthetic suggestions.
+Note: Voice and Photo features are removed for this test deployment.
+Only Local LLM (TinyLlama) is used – no external APIs.
 """
 
 import logging
@@ -36,18 +36,12 @@ from patient_agent import process_patient_message
 from appointment_engine import create_appointment_request
 from kpi_engine import get_kpi_summary
 from scheduler import start_scheduler
-
-# Import STT services (Unified) and facial analyzer
-from unified_stt import UnifiedSTTService
-from facial_analyzer import FacialAnalyzer
 from i18n import get_text
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# ========== Initialize Services ==========
-stt_service = UnifiedSTTService(primary_engine="auto")
-facial_analyzer = FacialAnalyzer()
+# ========== No STT or Facial Analyzer – only text ==========
 
 # ========== Conversation States ==========
 LANG_SELECT = 1
@@ -142,7 +136,6 @@ def get_main_keyboard(role: str, lang: str = "fa"):
             [get_text("btn_ask_clinic", lang), get_text("btn_services", lang)],
             [get_text("btn_human_receptionist", lang), get_text("btn_my_appointments", lang)]
         ]
-    # Language change button at the bottom
     buttons.append([get_text("btn_change_language", lang)])
     return ReplyKeyboardMarkup(buttons, resize_keyboard=True)
 
@@ -248,7 +241,6 @@ async def main_menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     db = SessionLocal()
     try:
-        # Ensure language is set; if not, force language selection
         lang = get_user_language(user_id, db)
         if not lang:
             await start(update, context)
@@ -257,13 +249,11 @@ async def main_menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         role = get_user_role(user_id, db)
         clinic_id = get_user_clinic_id(user_id, db)
 
-        # Detect language change button
         btn_change = get_text("btn_change_language", lang)
         if text == btn_change:
             await change_language(update, context)
             return
 
-        # Identify button presses using translated labels
         btn_home = get_text("btn_home", lang)
         btn_dashboard = get_text("btn_dashboard", lang)
         btn_book = get_text("btn_book_appointment", lang)
@@ -301,124 +291,9 @@ async def main_menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         elif text == btn_ask and role == 'patient':
             await process_patient_message(update, None, clinic_id, "telegram", str(user_id), text, db=db, lang=lang)
         else:
-            # Treat as normal message for all roles
             await process_patient_message(update, None, clinic_id, "telegram", str(user_id), text, db=db, lang=lang)
     finally:
         db.close()
-
-# ========== Voice/Audio Handler ==========
-async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle voice messages and audio files, transcribe and process as text."""
-    user_id = update.effective_user.id
-    voice = update.message.voice
-    audio = update.message.audio
-    file_id = None
-    media_type = None
-
-    if voice:
-        file_id = voice.file_id
-        media_type = "voice"
-    elif audio:
-        file_id = audio.file_id
-        media_type = "audio"
-    else:
-        return
-
-    # Get language for STT and error messages
-    db = SessionLocal()
-    try:
-        lang = get_user_language(user_id, db) or "fa"
-    finally:
-        db.close()
-
-    try:
-        # Download audio file
-        file = await context.bot.get_file(file_id)
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".ogg") as tmp:
-            tmp_path = tmp.name
-        await file.download_to_drive(tmp_path)
-
-        # Convert to WAV for Vosk (and also keep original for Whisper)
-        from pydub import AudioSegment
-        audio_data = AudioSegment.from_file(tmp_path)
-        audio_data = audio_data.set_channels(1).set_frame_rate(16000).set_sample_width(2)
-        wav_path = tempfile.NamedTemporaryFile(delete=False, suffix=".wav").name
-        audio_data.export(wav_path, format="wav")
-
-        # Use unified STT (tries Vosk then Whisper)
-        transcript = await stt_service.transcribe_audio_file(wav_path, language=lang)
-
-        # Cleanup temp files
-        try:
-            os.unlink(tmp_path)
-            os.unlink(wav_path)
-        except Exception as e:
-            logger.warning(f"Could not delete temp files: {e}")
-
-        if not transcript:
-            await update.message.reply_text(get_text("error_stt_failed", lang))
-            return
-
-        db = SessionLocal()
-        try:
-            clinic_id = get_user_clinic_id(user_id, db)
-            await process_patient_message(
-                update,
-                context,
-                clinic_id,
-                "telegram",
-                str(user_id),
-                raw_text=transcript,
-                media_url=file.file_path,
-                media_type=media_type,
-                transcript=transcript,
-                db=db,
-                lang=lang
-            )
-        finally:
-            db.close()
-
-    except Exception as e:
-        logger.error(f"Error handling voice: {e}", exc_info=True)
-        await update.message.reply_text(get_text("error_voice_processing", lang))
-
-# ========== Photo Handler (Facial Analysis) ==========
-async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Analyze uploaded photo for facial aesthetics."""
-    user_id = update.effective_user.id
-    # Get language
-    db = SessionLocal()
-    try:
-        lang = get_user_language(user_id, db) or "fa"
-    finally:
-        db.close()
-
-    # Get the largest photo (last in list)
-    photo = update.message.photo[-1]
-    file = await context.bot.get_file(photo.file_id)
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as tmp:
-        tmp_path = tmp.name
-    await file.download_to_drive(tmp_path)
-
-    # Analyze
-    result = facial_analyzer.analyze(tmp_path)
-
-    # Cleanup
-    try:
-        os.unlink(tmp_path)
-    except Exception as e:
-        logger.warning(f"Could not delete temp file: {e}")
-
-    if "error" in result:
-        await update.message.reply_text(get_text("facial_analysis_error", lang))
-        return
-
-    # Build response
-    msg = get_text("facial_analysis_title", lang) + "\n\n"
-    for suggestion in result["suggestions"]:
-        msg += "• " + suggestion + "\n"
-
-    await update.message.reply_text(msg)
 
 # ========== Appointment Wizard ==========
 async def start_appointment_booking(update: Update, context: ContextTypes.DEFAULT_TYPE,
@@ -908,20 +783,13 @@ async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 def startup_diagnostics():
     """Verify configuration and log provider status."""
     logger.info("=== ClinicOS Startup Diagnostics ===")
-    try:
-        validate_openrouter_config()
-        logger.info(f"OpenRouter free models: {OPENROUTER_FREE_MODELS}")
-    except ValueError as e:
-        logger.error(f"FATAL: OpenRouter configuration error – {e}")
-        raise
+    # No need to validate external API keys; local LLM is used.
     if not REDIS_URL:
         logger.warning("REDIS_URL not set. Scores will NOT persist across restarts.")
     else:
         logger.info("Redis configured. Scores will be persisted.")
     logger.info(f"Initial provider scores: {INITIAL_SCORES}")
-    logger.info("LLM routing layer ready.")
-    if not OPENAI_API_KEY:
-        logger.warning("OPENAI_API_KEY not set. Voice messages will not be transcribed.")
+    logger.info("Local LLM only mode active – no external API calls.")
 
 # ========== Main Application ==========
 def main():
@@ -981,11 +849,10 @@ def main():
         fallbacks=[CommandHandler('cancel', lambda u, c: u.message.reply_text("Cancelled"))],
     ))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, main_menu_handler))
-    app.add_handler(MessageHandler(filters.VOICE | filters.AUDIO, handle_voice))
-    app.add_handler(MessageHandler(filters.PHOTO, handle_photo))  # New photo handler
+    # Voice and Photo handlers are removed – only text messages are processed.
     app.add_error_handler(error_handler)
 
-    logger.info("🚀 ClinicOS bot started with Unified STT, Voice, and Facial Analysis support")
+    logger.info("🚀 ClinicOS bot started with Local LLM (text-only mode)")
     app.run_polling()
 
 if __name__ == "__main__":
