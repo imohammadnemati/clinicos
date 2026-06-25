@@ -1,8 +1,6 @@
 # ============================================================
 # Clinicos – Dockerfile for Railway Deployment
-# ============================================================
-# NOTE: Vosk models are NOT downloaded during build to avoid timeout.
-# They will be downloaded automatically at runtime when first needed.
+# Local LLM only (TinyLlama) – no external APIs, no Voice/Photo
 # ============================================================
 
 FROM python:3.11-slim
@@ -14,15 +12,13 @@ WORKDIR /app
 
 # ============================================================
 # Install system dependencies
-# Required for: audio processing (ffmpeg, libsndfile),
-#               building Python packages (gcc, g++),
-#               downloading models (wget, unzip – optional, but kept for safety)
+# Required for: llama-cpp-python (compilation), audio (optional),
+#               downloading models (wget, unzip)
 # ============================================================
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     g++ \
     ffmpeg \
-    libsndfile1 \
     wget \
     unzip \
     curl \
@@ -45,20 +41,15 @@ RUN pip install --no-cache-dir --no-build-isolation -r requirements.txt
 COPY . .
 
 # ============================================================
-# NOTE: Vosk models are NOT downloaded here.
-# The download_vosk_models.py script is kept for runtime use.
-# Models will be downloaded lazily via vosk_stt.py -> ensure_model()
-# ============================================================
-
-# ============================================================
-# Set environment variables (optional – can be overridden in Railway)
+# Set environment variables (can be overridden in Railway)
 # ============================================================
 ENV PYTHONUNBUFFERED=1
-ENV STT_ENGINE=auto
-ENV WHISPER_MODEL_SIZE=base
+ENV LOCAL_LLM_THREADS=4
+ENV LOCAL_LLM_MODEL_REPO="TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF"
+ENV LOCAL_LLM_MODEL_FILE="tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf"
 
 # ============================================================
-# Expose port (Telegram webhook not used, but kept for compatibility)
+# Expose port (Telegram webhook not used, kept for compatibility)
 # ============================================================
 EXPOSE 8080
 
