@@ -1,11 +1,10 @@
 """
 ClinicOS – Central Configuration
-Only Local LLM (TinyLlama) is enabled. No external API keys needed.
-All Voice/Photo features are disabled for testing.
+Only FreeLLMAPI is used as the LLM provider.
+All external API keys are removed.
 """
 
 import os
-from typing import List, Optional
 
 # ========== Telegram ==========
 BOT_TOKEN = os.getenv("BOT_TOKEN", "")
@@ -22,31 +21,28 @@ DEBUG_MODE = os.getenv("DEBUG_MODE", "False").lower() == "true"
 # ========== Redis ==========
 REDIS_URL = os.getenv("REDIS_URL", "")
 
-# ========== Local LLM (TinyLlama) – runs on Railway itself ==========
-LOCAL_LLM_MODEL_REPO = os.getenv("LOCAL_LLM_MODEL_REPO", "TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF")
-LOCAL_LLM_MODEL_FILE = os.getenv("LOCAL_LLM_MODEL_FILE", "tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf")
-LOCAL_LLM_MODEL_PATH = os.getenv("LOCAL_LLM_MODEL_PATH", "models/local_llm.gguf")
-LOCAL_LLM_CONTEXT_SIZE = int(os.getenv("LOCAL_LLM_CONTEXT_SIZE", "2048"))
-LOCAL_LLM_THREADS = int(os.getenv("LOCAL_LLM_THREADS", "4"))
+# ========== FreeLLMAPI (Local Proxy) ==========
+FREELLMAPI_BASE_URL = os.getenv("FREELLMAPI_BASE_URL", "https://freellmapi.up.railway.app/v1")
+FREELLMAPI_API_KEY = os.getenv("FREELLMAPI_API_KEY", "")
+FREELLMAPI_DEFAULT_MODEL = os.getenv("FREELLMAPI_DEFAULT_MODEL", "auto")  # یا یک مدل خاص
 
-# ========== LLM Base Scores – only Local LLM ==========
+# ========== LLM Base Scores – only FreeLLMAPI ==========
 INITIAL_SCORES = {
-    "local": 100,
-    # All other providers are disabled
+    "freellmapi": 100,
 }
 
-# ========== Scoring & Cooldown Rules (kept for compatibility) ==========
+# ========== Scoring & Cooldown Rules ==========
 SCORE_SUCCESS_INCREMENT = 1
 SCORE_FAILURE_PENALTY = 20
 MAX_SCORE = 200
 MIN_SCORE = 0
 CONSECUTIVE_FAILURES_THRESHOLD = 3
-COOLDOWN_SECONDS = 15 * 60   # 15 minutes
+COOLDOWN_SECONDS = 15 * 60
 
-# ========== Cost Manager (unused now, but kept) ==========
+# ========== Cost Manager (unused now) ==========
 DAILY_BUDGET = float(os.getenv("DAILY_BUDGET", "5.0"))
 MONTHLY_BUDGET = float(os.getenv("MONTHLY_BUDGET", "50.0"))
-FREE_PROVIDERS = ["local"]
+FREE_PROVIDERS = ["freellmapi"]
 
 # ========== Lead & Session ==========
 LEAD_THRESHOLD = float(os.getenv("LEAD_THRESHOLD", "7.0"))
@@ -82,28 +78,19 @@ LOG_FILE_PATH = os.getenv("LOG_FILE_PATH", "logs/clinic_brain.log")
 
 # ========== Helper Functions ==========
 def get_config_summary() -> dict:
-    """Return a summary of key configuration (without secrets)."""
     return {
         "bot_token_configured": bool(BOT_TOKEN),
         "owner_telegram_id": OWNER_TELEGRAM_ID,
         "database_url": DATABASE_URL.split("://")[0],
         "redis_configured": bool(REDIS_URL),
-        "local_llm_model": LOCAL_LLM_MODEL_FILE,
-        "local_llm_threads": LOCAL_LLM_THREADS,
+        "freellmapi_configured": bool(FREELLMAPI_API_KEY),
+        "freellmapi_url": FREELLMAPI_BASE_URL,
         "initial_scores": INITIAL_SCORES,
-        "lead_threshold": LEAD_THRESHOLD,
-        "session_hours": SESSION_HOURS,
-        "max_recovery_attempts": MAX_RECOVERY_ATTEMPTS,
-        "reminder_hours": DEFAULT_REMINDER_HOURS,
-        "working_hours": f"{WORKING_HOURS_START}:00 - {WORKING_HOURS_END}:00",
-        "medical_safety_mode": MEDICAL_SAFETY_MODE,
-        "readonly_mode": READONLY_MODE,
-        "debug_mode": DEBUG_MODE,
     }
 
 if __name__ == "__main__":
     print("=" * 50)
-    print("ClinicOS Configuration Summary (Local LLM Only)")
+    print("ClinicOS Configuration (FreeLLMAPI Only)")
     print("=" * 50)
     for k, v in get_config_summary().items():
         print(f"{k}: {v}")
