@@ -1,5 +1,5 @@
 """
-Provider Manager – Only supports Local LLM.
+Provider Manager – Only supports FreeLLMAPI.
 All external providers are removed to avoid import errors.
 """
 
@@ -11,8 +11,7 @@ from .state_store import StateStore
 from .cost_manager import CostManager
 from llm.config import INITIAL_SCORES
 
-# Only import the provider we actually use
-from llm.providers.local_llm_provider import LocalLLMProvider
+# No specific provider imports – providers are passed from patient_agent.py
 
 logger = logging.getLogger(__name__)
 
@@ -21,20 +20,12 @@ class ProviderManager:
     def __init__(self, providers: Dict[str, BaseLLMProvider],
                  state_store: StateStore,
                  cost_manager: CostManager):
-        """
-        Args:
-            providers: Dictionary mapping provider name to provider instance.
-                      In this deployment, only "local" is used.
-            state_store: Redis-backed state store (single source of truth).
-            cost_manager: Cost manager for quota scores.
-        """
         self.providers = providers
         self.state_store = state_store
         self.cost_manager = cost_manager
         self._ensure_initial_scores()
 
     def _ensure_initial_scores(self):
-        """Ensure that every provider has a score in Redis."""
         for name in self.providers.keys():
             current = self.state_store.get_score(name)
             if current == INITIAL_SCORES.get(name, 50):
