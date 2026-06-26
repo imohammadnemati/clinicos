@@ -5,7 +5,7 @@ staff management, leads, escalations, and LLM orchestration (Local LLM).
 Fully internationalized (i18n) – UI texts in Fa, En, Az, Ar, Tr.
 Includes a "Change Language" button in the main menu.
 
-Note: Voice and Photo features are removed for this test deployment.
+Note: Voice, Photo, and STT features are completely removed.
 Only Local LLM (TinyLlama) is used – no external APIs.
 """
 
@@ -13,8 +13,6 @@ import logging
 import time
 import asyncio
 import requests
-import tempfile
-import os
 from datetime import datetime, timedelta
 from typing import Optional
 
@@ -23,10 +21,7 @@ from telegram.ext import (
     Application, CommandHandler, CallbackQueryHandler, MessageHandler,
     ConversationHandler, filters, ContextTypes
 )
-from config import (
-    BOT_TOKEN, OWNER_TELEGRAM_ID, REDIS_URL, OPENROUTER_FREE_MODELS,
-    validate_openrouter_config, INITIAL_SCORES, OPENAI_API_KEY
-)
+from config import BOT_TOKEN, OWNER_TELEGRAM_ID, REDIS_URL, INITIAL_SCORES
 from database import SessionLocal, init_db
 from models import (
     Clinic, Staff, Patient, PatientAlias, Lead, Appointment,
@@ -40,8 +35,6 @@ from i18n import get_text
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
-# ========== No STT or Facial Analyzer – only text ==========
 
 # ========== Conversation States ==========
 LANG_SELECT = 1
@@ -783,7 +776,6 @@ async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 def startup_diagnostics():
     """Verify configuration and log provider status."""
     logger.info("=== ClinicOS Startup Diagnostics ===")
-    # No need to validate external API keys; local LLM is used.
     if not REDIS_URL:
         logger.warning("REDIS_URL not set. Scores will NOT persist across restarts.")
     else:
@@ -849,7 +841,6 @@ def main():
         fallbacks=[CommandHandler('cancel', lambda u, c: u.message.reply_text("Cancelled"))],
     ))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, main_menu_handler))
-    # Voice and Photo handlers are removed – only text messages are processed.
     app.add_error_handler(error_handler)
 
     logger.info("🚀 ClinicOS bot started with Local LLM (text-only mode)")
