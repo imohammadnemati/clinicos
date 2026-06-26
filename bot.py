@@ -1,12 +1,12 @@
 """
 ClinicOS Telegram Bot – Final Production Version
 Supports: language selection, role‑based menus, appointment wizard,
-staff management, leads, escalations, and LLM orchestration (Local LLM).
+staff management, leads, escalations, and LLM orchestration (FreeLLMAPI).
 Fully internationalized (i18n) – UI texts in Fa, En, Az, Ar, Tr.
 Includes a "Change Language" button in the main menu.
 
 Note: Voice, Photo, and STT features are completely removed.
-Only Local LLM (TinyLlama) is used – no external APIs.
+Only FreeLLMAPI is used – no external API keys, no local LLM.
 """
 
 import logging
@@ -781,7 +781,7 @@ def startup_diagnostics():
     else:
         logger.info("Redis configured. Scores will be persisted.")
     logger.info(f"Initial provider scores: {INITIAL_SCORES}")
-    logger.info("Local LLM only mode active – no external API calls.")
+    logger.info("FreeLLMAPI mode active – no external API calls.")
 
 # ========== Main Application ==========
 def main():
@@ -843,7 +843,7 @@ def main():
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, main_menu_handler))
     app.add_error_handler(error_handler)
 
-    logger.info("🚀 ClinicOS bot started with Local LLM (text-only mode)")
+    logger.info("🚀 ClinicOS bot started with FreeLLMAPI (text-only mode)")
     app.run_polling()
 
 if __name__ == "__main__":
