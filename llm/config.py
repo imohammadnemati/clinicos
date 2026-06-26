@@ -1,13 +1,11 @@
-import sys
-import os
+"""
+LLM Configuration – re‑exports settings from main config.
+Only uses variables that exist in the main config file.
+"""
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
+# ========== Re‑export from main config ==========
 from config import (
-    DEEPSEEK_API_KEY,
-    GEMINI_API_KEY,
-    OPENAI_API_KEY,
-    OPENROUTER_API_KEY,
+    REDIS_URL,
     INITIAL_SCORES,
     SCORE_SUCCESS_INCREMENT,
     SCORE_FAILURE_PENALTY,
@@ -15,29 +13,7 @@ from config import (
     MIN_SCORE,
     CONSECUTIVE_FAILURES_THRESHOLD,
     COOLDOWN_SECONDS,
-    DAILY_BUDGET,
-    MONTHLY_BUDGET,
-    FREE_PROVIDERS,
-    REDIS_URL,
 )
 
-OPENROUTER_FREE_MODELS = []
-
-__all__ = [
-    "DEEPSEEK_API_KEY",
-    "GEMINI_API_KEY",
-    "OPENAI_API_KEY",
-    "OPENROUTER_API_KEY",
-    "OPENROUTER_FREE_MODELS",
-    "INITIAL_SCORES",
-    "SCORE_SUCCESS_INCREMENT",
-    "SCORE_FAILURE_PENALTY",
-    "MAX_SCORE",
-    "MIN_SCORE",
-    "CONSECUTIVE_FAILURES_THRESHOLD",
-    "COOLDOWN_SECONDS",
-    "DAILY_BUDGET",
-    "MONTHLY_BUDGET",
-    "FREE_PROVIDERS",
-    "REDIS_URL",
-]
+# ========== No external API keys are imported ==========
+# All Local LLM settings are defined in the main config.
