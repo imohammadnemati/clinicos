@@ -3,7 +3,7 @@ ClinicOS – Patient Message Agent
 Core business logic: processes incoming patient messages, manages conversation state,
 patient memory, lead scoring, and invokes the LLM router for AI responses.
 
-ONLY Local LLM (TinyLlama) is enabled. No external APIs, no STT, no Vosk.
+ONLY FreeLLMAPI is used as the LLM provider.
 """
 
 import json
@@ -13,7 +13,10 @@ import logging
 from datetime import datetime
 from typing import Optional
 
-from config import LEAD_THRESHOLD
+from config import (
+    LEAD_THRESHOLD,
+    FREELLMAPI_API_KEY,  # برای بررسی وجود کلید
+)
 from database import SessionLocal
 from models import (
     Session as SessionModel,
@@ -42,8 +45,8 @@ from llm.provider_router import ProviderRouter
 from llm.provider_manager import ProviderManager
 from llm.state_store import StateStore
 from llm.cost_manager import CostManager
-# Only Local LLM provider is used
-from llm.providers.local_llm_provider import LocalLLMProvider
+# Only FreeLLMAPI provider is used
+from llm.providers.freellmapi_provider import FreeLLMAPIProvider
 
 logger = logging.getLogger(__name__)
 
@@ -51,10 +54,13 @@ logger = logging.getLogger(__name__)
 _state_store = StateStore()
 _cost_manager = CostManager()
 
-# Build provider instances – ONLY local LLM
+# Build provider instances – ONLY FreeLLMAPI
 providers = {}
-providers["local"] = LocalLLMProvider()
-logger.info("✅ Local LLM provider enabled (only provider)")
+if FREELLMAPI_API_KEY:
+    providers["freellmapi"] = FreeLLMAPIProvider()
+    logger.info("✅ FreeLLMAPI provider enabled")
+else:
+    logger.error("❌ FREELLMAPI_API_KEY not set! No LLM available.")
 
 _provider_manager = ProviderManager(
     providers=providers,
