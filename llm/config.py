@@ -1,6 +1,6 @@
 """
 LLM Configuration – re‑exports settings from main config.
-Only uses variables that exist in the main config file.
+Exports all variables needed by llm modules (cost_manager, state_store, etc.).
 """
 
 # ========== Re‑export from main config ==========
@@ -13,6 +13,9 @@ from config import (
     MIN_SCORE,
     CONSECUTIVE_FAILURES_THRESHOLD,
     COOLDOWN_SECONDS,
+    DAILY_BUDGET,
+    MONTHLY_BUDGET,
+    FREE_PROVIDERS,
 )
 
 # ========== No external API keys are imported ==========
