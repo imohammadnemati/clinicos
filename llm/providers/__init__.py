@@ -1,17 +1,10 @@
 """
-LLM Providers – Concrete implementations of BaseLLMProvider for each supported API.
+Providers module – exports available providers.
+Only Local LLM is used; external providers are disabled.
 """
 
-from .base_provider import BaseLLMProvider
-from .deepseek_provider import DeepSeekProvider
-from .gemini_provider import GeminiProvider
-from .openai_provider import OpenAIProvider
-from .openrouter_provider import OpenRouterProvider
+# Only import the provider we actually use
+from .local_llm_provider import LocalLLMProvider
 
-__all__ = [
-    "BaseLLMProvider",
-    "DeepSeekProvider",
-    "GeminiProvider",
-    "OpenAIProvider",
-    "OpenRouterProvider",
-]
+# Do not import any external providers (DeepSeek, Groq, OpenAI, etc.)
+# They are not used in this deployment.
