@@ -1,6 +1,6 @@
 # ============================================================
-# Clinicos – Production Dependencies (Local LLM Only)
-# No Voice, no Facial Analysis, no external APIs.
+# Clinicos – وابستگی‌های تولید (فقط Local LLM)
+# بدون STT، بدون Vosk، بدون Whisper
 # ============================================================
 
 # Telegram Bot Framework
@@ -19,9 +19,9 @@ alembic==1.13.0
 redis==5.0.1
 
 # ============================================================
-# Local LLM (TinyLlama via llama-cpp-python)
+# Local LLM (TinyLlama از طریق llama-cpp-python)
 # ============================================================
-llama-cpp-python==0.2.69
+llama-cpp-python==0.2.80
 huggingface-hub==0.20.3
 
 # ============================================================
@@ -54,14 +54,14 @@ python-json-logger==2.0.7
 pydantic==2.5.0
 
 # ============================================================
-# Testing (optional – not deployed)
+# Testing (اختیاری – برای توسعه)
 # ============================================================
 pytest==7.4.3
 pytest-asyncio==0.21.1
 pytest-cov==4.1.0
 
 # ============================================================
-# Development (optional – not deployed)
+# Development (اختیاری – برای توسعه)
 # ============================================================
 black==23.11.0
 isort==5.12.0
