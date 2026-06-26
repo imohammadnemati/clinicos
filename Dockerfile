@@ -1,22 +1,24 @@
 # ============================================================
-# Clinicos – Dockerfile for Railway Deployment
-# ONLY Local LLM (TinyLlama) – NO Voice, NO STT, NO Vosk, NO Whisper
+# Clinicos – Dockerfile برای استقرار در Railway
+# فقط Local LLM (TinyLlama) – بدون STT، بدون Vosk، بدون Whisper
 # ============================================================
 
 FROM python:3.11-slim
 
 # ============================================================
-# Set working directory
+# تنظیم دایرکتوری کاری
 # ============================================================
 WORKDIR /app
 
 # ============================================================
-# Install ONLY essential system dependencies
-# Required for: llama-cpp-python (compilation) + model download
+# نصب وابستگی‌های سیستمی
+# برای کامپایل llama-cpp-python به cmake و ninja-build نیاز داریم
 # ============================================================
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     g++ \
+    cmake \
+    ninja-build \
     wget \
     unzip \
     curl \
@@ -24,32 +26,39 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # ============================================================
-# Copy requirements first for better caching
+# نصب scikit-build-core قبل از نصب requirements
+# این کار باعث می‌شود llama-cpp-python بدون خطا از سورس بیلد شود
+# ============================================================
+RUN pip install --no-cache-dir scikit-build-core
+
+# ============================================================
+# کپی requirements برای کش بهتر
 # ============================================================
 COPY requirements.txt .
 
 # ============================================================
-# Install Python dependencies (NO STT, NO Vosk, NO Whisper)
+# نصب وابستگی‌های پایتون
 # ============================================================
 RUN pip install --no-cache-dir --no-build-isolation -r requirements.txt
 
 # ============================================================
-# Copy the entire project
+# کپی کل پروژه
 # ============================================================
 COPY . .
 
 # ============================================================
-# Set environment variables for Local LLM
+# متغیرهای محیطی
 # ============================================================
 ENV PYTHONUNBUFFERED=1
 ENV LOCAL_LLM_THREADS=4
+ENV CMAKE_ARGS="-DLLAMA_BLAS=ON -DLLAMA_BLAS_VENDOR=OpenBLAS"
 
 # ============================================================
-# Expose port (Telegram webhook not used, kept for compatibility)
+# پورت (فقط برای سازگاری)
 # ============================================================
 EXPOSE 8080
 
 # ============================================================
-# Command to run the bot
+# دستور اجرا
 # ============================================================
 CMD ["python", "bot.py"]
