@@ -1,10 +1,10 @@
 """
 Providers module – exports available providers.
-Only Local LLM is used; external providers are disabled.
+Only FreeLLMAPI is used; all other providers are disabled.
 """
 
 # Only import the provider we actually use
-from .local_llm_provider import LocalLLMProvider
+from .freellmapi_provider import FreeLLMAPIProvider
 
-# Do not import any external providers (DeepSeek, Groq, OpenAI, etc.)
+# Do not import any other providers (LocalLLM, Groq, OpenAI, etc.)
 # They are not used in this deployment.
