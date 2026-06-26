@@ -3,21 +3,17 @@ ClinicOS – Patient Message Agent
 Core business logic: processes incoming patient messages, manages conversation state,
 patient memory, lead scoring, and invokes the LLM router for AI responses.
 
-ONLY Local LLM (TinyLlama) is enabled. No external APIs.
+ONLY Local LLM (TinyLlama) is enabled. No external APIs, no STT, no Vosk.
 """
 
 import json
 import re
-import asyncio
 import hashlib
 import logging
 from datetime import datetime
 from typing import Optional
 
-from config import (
-    LEAD_THRESHOLD,
-    # No external API keys are imported
-)
+from config import LEAD_THRESHOLD
 from database import SessionLocal
 from models import (
     Session as SessionModel,
@@ -68,7 +64,7 @@ _provider_manager = ProviderManager(
 
 _router = ProviderRouter(provider_manager=_provider_manager)
 
-# ---------- Prompts (unchanged) ----------
+# ---------- Prompts ----------
 FACTS_PROMPT = """
 You are an AI assistant for a cosmetic clinic. Extract structured facts from the patient message.
 Consider the previous conversation context if provided.
