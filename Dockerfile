@@ -11,8 +11,7 @@ FROM python:3.11-slim
 WORKDIR /app
 
 # ============================================================
-# نصب وابستگی‌های سیستمی
-# برای کامپایل llama-cpp-python به cmake و ninja-build نیاز داریم
+# نصب وابستگی‌های سیستمی برای کامپایل llama-cpp-python
 # ============================================================
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
