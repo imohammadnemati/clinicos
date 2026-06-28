@@ -1,10 +1,11 @@
 """
 ClinicOS – Database Models (SQLAlchemy)
 All tables for CRM, patients, staff, leads, appointments, escalations, etc.
+Includes models for Facial Analysis feature.
 """
 
 from sqlalchemy import Column, Integer, String, Float, Boolean, DateTime, ForeignKey, Text, JSON, Index, Time
-from sqlalchemy.orm import declarative_base
+from sqlalchemy.orm import declarative_base, relationship
 from datetime import datetime
 
 Base = declarative_base()
@@ -482,3 +483,114 @@ class ContentWorkflow(Base):
     published_url = Column(Text)
     performance_notes = Column(Text)
     updated_at = Column(DateTime, default=datetime.utcnow)
+
+
+# ============================================================
+# Facial Analysis Models (NEW)
+# ============================================================
+
+class FacialAnalysis(Base):
+    __tablename__ = 'facial_analyses'
+    id = Column(Integer, primary_key=True)
+    patient_id = Column(Integer, ForeignKey('patients.id'))
+    clinic_id = Column(Integer, ForeignKey('clinics.id'))
+    performed_by = Column(Integer, ForeignKey('staff.id'), nullable=True)
+    gender = Column(String(10))
+    age = Column(Integer)
+    overall_beauty_score = Column(Float)
+    symmetry_score = Column(Float)
+    skin_quality_score = Column(Float)
+    youthfulness_score = Column(Float)
+    volume_balance_score = Column(Float)
+    facial_harmony_score = Column(Float)
+    estimated_apparent_age = Column(Integer)
+    report_text = Column(Text)
+    report_pdf_url = Column(String(500), nullable=True)
+    status = Column(String(20), default='completed')
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationships
+    patient = relationship('Patient', foreign_keys=[patient_id])
+    clinic = relationship('Clinic', foreign_keys=[clinic_id])
+    performer = relationship('Staff', foreign_keys=[performed_by])
+
+
+class FacialLandmarks(Base):
+    __tablename__ = 'facial_landmarks'
+    id = Column(Integer, primary_key=True)
+    analysis_id = Column(Integer, ForeignKey('facial_analyses.id'))
+    view = Column(String(10))  # 'front', 'right', 'left'
+    landmarks = Column(JSON)  # list of [x, y] for 468 points
+    confidence = Column(Float)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    # Relationship
+    analysis = relationship('FacialAnalysis', foreign_keys=[analysis_id])
+
+
+class FacialMetrics(Base):
+    __tablename__ = 'facial_metrics'
+    id = Column(Integer, primary_key=True)
+    analysis_id = Column(Integer, ForeignKey('facial_analyses.id'))
+    metric_name = Column(String(50))
+    value = Column(Float)
+    confidence = Column(Float)
+    category = Column(String(30))  # symmetry, skin, volume, etc.
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    # Relationship
+    analysis = relationship('FacialAnalysis', foreign_keys=[analysis_id])
+
+
+class TreatmentRecommendation(Base):
+    __tablename__ = 'treatment_recommendations'
+    id = Column(Integer, primary_key=True)
+    analysis_id = Column(Integer, ForeignKey('facial_analyses.id'))
+    treatment_type = Column(String(30))  # botox, filler, mesotherapy, etc.
+    area = Column(String(50))
+    estimated_units = Column(String(20), nullable=True)  # e.g., "20-30"
+    estimated_volume = Column(String(20), nullable=True)  # e.g., "1-2 cc"
+    confidence = Column(Float)
+    priority = Column(Integer)  # 1 = highest
+    description = Column(Text)
+    price_estimate = Column(Float, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    # Relationship
+    analysis = relationship('FacialAnalysis', foreign_keys=[analysis_id])
+
+
+class FacialBeforeAfter(Base):
+    """
+    Before/After comparison for facial analysis.
+    Uses analysis IDs to compare results.
+    """
+    __tablename__ = 'facial_before_after'
+    id = Column(Integer, primary_key=True)
+    patient_id = Column(Integer, ForeignKey('patients.id'))
+    before_analysis_id = Column(Integer, ForeignKey('facial_analyses.id'))
+    after_analysis_id = Column(Integer, ForeignKey('facial_analyses.id'))
+    treatment_done = Column(JSON)  # list of treatments performed
+    improvement_symmetry = Column(Float)
+    improvement_skin = Column(Float)
+    improvement_volume = Column(Float)
+    improvement_overall = Column(Float)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    # Relationships
+    patient = relationship('Patient', foreign_keys=[patient_id])
+    before_analysis = relationship('FacialAnalysis', foreign_keys=[before_analysis_id])
+    after_analysis = relationship('FacialAnalysis', foreign_keys=[after_analysis_id])
+
+
+class FacialAnalysisUsage(Base):
+    __tablename__ = 'facial_analysis_usage'
+    id = Column(Integer, primary_key=True)
+    patient_id = Column(Integer, ForeignKey('patients.id'), unique=True)
+    analysis_used = Column(Boolean, default=False)
+    used_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    # Relationship
+    patient = relationship('Patient', foreign_keys=[patient_id])
