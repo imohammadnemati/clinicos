@@ -12,8 +12,7 @@ FROM python:3.11-slim
 WORKDIR /app
 
 # ============================================================
-# نصب وابستگی‌های سیستمی
-# برای OpenCV (بدون GUI) و MediaPipe
+# نصب وابستگی‌های سیستمی برای OpenCV و MediaPipe
 # ============================================================
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
@@ -24,7 +23,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libxext6 \
     libxrender-dev \
     libgomp1 \
-    libglib2.0-0 \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
@@ -44,11 +42,11 @@ RUN pip install --no-cache-dir --no-build-isolation -r requirements.txt
 COPY . .
 
 # ============================================================
-# متغیرهای محیطی
+# متغیرهای محیطی (هر کدام به صورت KEY=value در یک خط جداگانه)
 # ============================================================
 ENV PYTHONUNBUFFERED=1
-ENV OPENCV_IO_ENABLE_OPENEXR=0   # غیرفعال‌سازی OpenEXR برای کاهش وابستگی
-ENV TF_CPP_MIN_LOG_LEVEL=2       # کاهش لاگ‌های TensorFlow (اگر استفاده شود)
+ENV OPENCV_IO_ENABLE_OPENEXR=0
+ENV TF_CPP_MIN_LOG_LEVEL=2
 
 # ============================================================
 # پورت (فقط برای سازگاری)
