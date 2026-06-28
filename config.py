@@ -2,6 +2,7 @@
 ClinicOS – Central Configuration
 Only FreeLLMAPI is used as the LLM provider.
 All external API keys are removed.
+Supports Facial Analysis feature with configurable limits.
 """
 
 import os
@@ -22,9 +23,9 @@ DEBUG_MODE = os.getenv("DEBUG_MODE", "False").lower() == "true"
 REDIS_URL = os.getenv("REDIS_URL", "")
 
 # ========== FreeLLMAPI (Local Proxy) ==========
-FREELLMAPI_BASE_URL = os.getenv("FREELLMAPI_BASE_URL", "https://freellmapi.up.railway.app/v1")
+FREELLMAPI_BASE_URL = os.getenv("FREELLMAPI_BASE_URL", "https://freellmapi-production-7f3d.up.railway.app")
 FREELLMAPI_API_KEY = os.getenv("FREELLMAPI_API_KEY", "")
-FREELLMAPI_DEFAULT_MODEL = os.getenv("FREELLMAPI_DEFAULT_MODEL", "auto")  # یا یک مدل خاص
+FREELLMAPI_DEFAULT_MODEL = os.getenv("FREELLMAPI_DEFAULT_MODEL", "auto")
 
 # ========== LLM Base Scores – only FreeLLMAPI ==========
 INITIAL_SCORES = {
@@ -76,6 +77,12 @@ READONLY_MODE = os.getenv("READONLY_MODE", "False").lower() == "true"
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 LOG_FILE_PATH = os.getenv("LOG_FILE_PATH", "logs/clinic_brain.log")
 
+# ========== Facial Analysis ==========
+MAX_PATIENT_FACIAL_ANALYSES = int(os.getenv("MAX_PATIENT_FACIAL_ANALYSES", "1"))
+FACIAL_ANALYSIS_TIMEOUT = int(os.getenv("FACIAL_ANALYSIS_TIMEOUT", "30"))  # seconds
+PDF_REPORT_ENABLED = os.getenv("PDF_REPORT_ENABLED", "true").lower() == "true"
+PDF_REPORT_FONT_PATH = os.getenv("PDF_REPORT_FONT_PATH", "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf")
+
 # ========== Helper Functions ==========
 def get_config_summary() -> dict:
     return {
@@ -86,11 +93,23 @@ def get_config_summary() -> dict:
         "freellmapi_configured": bool(FREELLMAPI_API_KEY),
         "freellmapi_url": FREELLMAPI_BASE_URL,
         "initial_scores": INITIAL_SCORES,
+        "lead_threshold": LEAD_THRESHOLD,
+        "session_hours": SESSION_HOURS,
+        "max_recovery_attempts": MAX_RECOVERY_ATTEMPTS,
+        "reminder_hours": DEFAULT_REMINDER_HOURS,
+        "working_hours": f"{WORKING_HOURS_START}:00 - {WORKING_HOURS_END}:00",
+        "medical_safety_mode": MEDICAL_SAFETY_MODE,
+        "readonly_mode": READONLY_MODE,
+        "debug_mode": DEBUG_MODE,
+        "max_patient_facial_analyses": MAX_PATIENT_FACIAL_ANALYSES,
+        "facial_analysis_timeout": FACIAL_ANALYSIS_TIMEOUT,
+        "pdf_report_enabled": PDF_REPORT_ENABLED,
+        "pdf_report_font": PDF_REPORT_FONT_PATH,
     }
 
 if __name__ == "__main__":
     print("=" * 50)
-    print("ClinicOS Configuration (FreeLLMAPI Only)")
+    print("ClinicOS Configuration (FreeLLMAPI + Facial Analysis)")
     print("=" * 50)
     for k, v in get_config_summary().items():
         print(f"{k}: {v}")
