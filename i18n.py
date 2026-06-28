@@ -1,6 +1,7 @@
 """
 Internationalization (i18n) module for Clinicos.
 All UI texts are stored here in 5 languages: fa, en, az, ar, tr.
+Includes keys for Facial Analysis feature.
 """
 
 TEXTS = {
@@ -20,7 +21,7 @@ TEXTS = {
         "dashboard_secretary": "📋 *داشبورد منشی*\n\n✉️ پیام‌ها: {messages}\n🔥 لیدها: {leads}\n📅 نوبت‌ها: {appts}\n🚨 ارجاعات: {esc}",
         "dashboard_doctor": "👨‍⚕️ *داشبورد پزشک*\n\n🚨 ارجاعات در انتظار: {pending}",
 
-        # Main menu buttons - FULLY TRANSLATED TO PERSIAN
+        # Main menu buttons
         "btn_home": "🏠 صفحه اصلی",
         "btn_book_appointment": "📅 رزرو نوبت",
         "btn_ask_clinic": "💬 پرسش از کلینیک",
@@ -46,6 +47,28 @@ TEXTS = {
         "btn_notifications": "🔔 اعلانات",
         "btn_statistics": "📊 آمار",
         "btn_handoff": "👩‍💼 انتقال به منشی",
+
+        # Facial Analysis
+        "btn_facial_analysis": "🧠 تحلیل هوشمند چهره",
+        "facial_instructions": "📸 راهنمای عکاسی:\n\n1. نور مناسب\n2. بدون فیلتر\n3. بدون آرایش سنگین\n4. صورت کامل مشخص باشد\n5. زاویه صحیح\n\nآماده‌اید؟",
+        "facial_continue": "✅ بله، آماده‌ام",
+        "facial_cancel": "❌ انصراف",
+        "facial_cancelled": "❌ تحلیل لغو شد.",
+        "facial_ask_gender": "👤 لطفاً جنسیت خود را انتخاب کنید:",
+        "facial_gender_male": "👨 مرد",
+        "facial_gender_female": "👩 زن",
+        "facial_gender_other": "🧑 سایر",
+        "facial_ask_age": "📅 لطفاً سن خود را وارد کنید:",
+        "facial_invalid_age": "❌ لطفاً یک عدد معتبر بین ۱ تا ۱۲۰ وارد کنید.",
+        "facial_ask_front_photo": "📷 لطفاً یک عکس تمام رخ (روبرو) ارسال کنید.",
+        "facial_ask_right_photo": "📷 لطفاً یک عکس نیم رخ راست ارسال کنید.",
+        "facial_ask_left_photo": "📷 لطفاً یک عکس نیم رخ چپ ارسال کنید.",
+        "facial_send_photo": "❌ لطفاً یک عکس ارسال کنید.",
+        "facial_quality_reject": "❌ کیفیت تصویر قابل قبول نیست.\nدلیل: {reason}\nلطفاً دوباره عکس ارسال کنید.",
+        "facial_accept_photo": "✅ عکس با کیفیت است.",
+        "facial_analyzing": "🧠 در حال تحلیل چهره شما... لطفاً چند لحظه صبر کنید.",
+        "facial_result_summary": "🔍 نتیجه تحلیل:\n\nامتیاز کلی زیبایی: {overall:.1f}\nتقارن: {symmetry:.1f}\nکیفیت پوست: {skin:.1f}\nجوانی: {youth:.1f}\nتعادل حجم: {volume:.1f}\nهماهنگی چهره: {harmony:.1f}\n\nگزارش کامل ارسال شد.",
+        "facial_limit_reached": "⚠️ شما قبلاً یک بار از این قابلیت استفاده کرده‌اید. برای استفاده مجدد، لطفاً با پزشک خود مشورت کنید.",
 
         # Appointment wizard
         "appt_select_service": "📅 لطفاً خدمت مورد نظر را انتخاب کنید:",
@@ -120,10 +143,6 @@ TEXTS = {
         "patient_appointments_title": "📄 *نوبت‌های شما*",
         "patient_appointments_item": "• {service} – {date} – {status}",
 
-        # Facial analysis
-        "facial_analysis_title": "🔍 تحلیل چهره",
-        "facial_analysis_error": "❌ خطا در تحلیل تصویر. لطفاً عکس واضحی از صورت ارسال کنید.",
-
         # Errors
         "error_unknown_command": "❓ دستور ناشناخته. از منو استفاده کنید.",
         "error_internal": "❌ خطای داخلی. لطفاً دقایقی دیگر تلاش کنید.",
@@ -184,6 +203,28 @@ TEXTS = {
         "btn_notifications": "🔔 Notifications",
         "btn_statistics": "📊 Statistics",
         "btn_handoff": "👩‍💼 Handoff",
+
+        # Facial Analysis
+        "btn_facial_analysis": "🧠 AI Facial Analysis",
+        "facial_instructions": "📸 Photo Guidelines:\n\n1. Good lighting\n2. No filters\n3. No heavy makeup\n4. Full face visible\n5. Correct angle\n\nReady?",
+        "facial_continue": "✅ Yes, I'm ready",
+        "facial_cancel": "❌ Cancel",
+        "facial_cancelled": "❌ Analysis cancelled.",
+        "facial_ask_gender": "👤 Please select your gender:",
+        "facial_gender_male": "👨 Male",
+        "facial_gender_female": "👩 Female",
+        "facial_gender_other": "🧑 Other",
+        "facial_ask_age": "📅 Please enter your age:",
+        "facial_invalid_age": "❌ Please enter a valid number between 1 and 120.",
+        "facial_ask_front_photo": "📷 Please send a front-facing photo.",
+        "facial_ask_right_photo": "📷 Please send a right profile photo.",
+        "facial_ask_left_photo": "📷 Please send a left profile photo.",
+        "facial_send_photo": "❌ Please send a photo.",
+        "facial_quality_reject": "❌ Image quality not acceptable.\nReason: {reason}\nPlease send the photo again.",
+        "facial_accept_photo": "✅ Photo quality is acceptable.",
+        "facial_analyzing": "🧠 Analyzing your face... Please wait a moment.",
+        "facial_result_summary": "🔍 Analysis Results:\n\nOverall Beauty Score: {overall:.1f}\nSymmetry: {symmetry:.1f}\nSkin Quality: {skin:.1f}\nYouthfulness: {youth:.1f}\nVolume Balance: {volume:.1f}\nFacial Harmony: {harmony:.1f}\n\nFull report sent.",
+        "facial_limit_reached": "⚠️ You have already used this feature once. For further analysis, please consult your doctor.",
 
         "appt_select_service": "📅 Please select the service:",
         "appt_service_botox": "Botox",
@@ -250,10 +291,6 @@ TEXTS = {
         "patient_appointments_title": "📄 *Your Appointments*",
         "patient_appointments_item": "• {service} – {date} – {status}",
 
-        # Facial analysis
-        "facial_analysis_title": "🔍 Facial Analysis",
-        "facial_analysis_error": "❌ Error analyzing image. Please send a clear face photo.",
-
         "error_unknown_command": "❓ Unknown command. Use the menu.",
         "error_internal": "❌ Internal error. Please try again later.",
         "error_invalid_date": "❌ Invalid date format. Please use YYYY-MM-DD:",
@@ -306,6 +343,28 @@ TEXTS = {
         "btn_notifications": "🔔 Bildirişlər",
         "btn_statistics": "📊 Statistikalar",
         "btn_handoff": "👩‍💼 Operatora keç",
+
+        # Facial Analysis
+        "btn_facial_analysis": "🧠 Ağıllı üz analizi",
+        "facial_instructions": "📸 Fotoqrafiya qaydaları:\n\n1. Yaxşı işıqlandırma\n2. Filtrsiz\n3. Ağır makiyajsız\n4. Tam üz görünsün\n5. Düzgün bucaq\n\nHazırsınız?",
+        "facial_continue": "✅ Bəli, hazıram",
+        "facial_cancel": "❌ Ləğv et",
+        "facial_cancelled": "❌ Analiz ləğv edildi.",
+        "facial_ask_gender": "👤 Zəhmət olmasa cinsinizi seçin:",
+        "facial_gender_male": "👨 Kişi",
+        "facial_gender_female": "👩 Qadın",
+        "facial_gender_other": "🧑 Digər",
+        "facial_ask_age": "📅 Zəhmət olmasa yaşınızı daxil edin:",
+        "facial_invalid_age": "❌ Zəhmət olmasa 1 ilə 120 arasında etibarlı bir nömrə daxil edin.",
+        "facial_ask_front_photo": "📷 Zəhmət olmasa ön tərəfdən foto göndərin.",
+        "facial_ask_right_photo": "📷 Zəhmət olmasa sağ profildən foto göndərin.",
+        "facial_ask_left_photo": "📷 Zəhmət olmasa sol profildən foto göndərin.",
+        "facial_send_photo": "❌ Zəhmət olmasa bir foto göndərin.",
+        "facial_quality_reject": "❌ Şəkil keyfiyyəti qəbuledilməzdir.\nSəbəb: {reason}\nZəhmət olmasa şəkli yenidən göndərin.",
+        "facial_accept_photo": "✅ Şəkil keyfiyyəti məqbuldur.",
+        "facial_analyzing": "🧠 Üzünüz analiz edilir... Bir an gözləyin.",
+        "facial_result_summary": "🔍 Analiz nəticələri:\n\nÜmumi gözəllik balı: {overall:.1f}\nSimmetriya: {symmetry:.1f}\nDəri keyfiyyəti: {skin:.1f}\nGənclik: {youth:.1f}\nHəcm balansı: {volume:.1f}\nÜz harmoniyası: {harmony:.1f}\n\nTam hesabat göndərildi.",
+        "facial_limit_reached": "⚠️ Siz bu xüsusiyyətdən artıq bir dəfə istifadə etmisiniz. Təkrar istifadə üçün həkiminizlə məsləhətləşin.",
 
         "appt_select_service": "📅 Xidmət seçin:",
         "appt_service_botox": "Botox",
@@ -372,9 +431,6 @@ TEXTS = {
         "patient_appointments_title": "📄 *Sizin qeydiyyatlarınız*",
         "patient_appointments_item": "• {service} – {date} – {status}",
 
-        "facial_analysis_title": "🔍 Üz analizi",
-        "facial_analysis_error": "❌ Şəkil analiz edilərkən xəta. Zəhmət olmasa üzün aydın fotosunu göndərin.",
-
         "error_unknown_command": "❓ Naməlum əmr. Menudan istifadə edin.",
         "error_internal": "❌ Daxili xəta. Bir neçə dəqiqə sonra yenidən cəhd edin.",
         "error_invalid_date": "❌ Tarix formatı səhvdir. YYYY-MM-DD formatında daxil edin:",
@@ -427,6 +483,28 @@ TEXTS = {
         "btn_notifications": "🔔 الإشعارات",
         "btn_statistics": "📊 الإحصائيات",
         "btn_handoff": "👩‍💼 تحويل لموظف",
+
+        # Facial Analysis
+        "btn_facial_analysis": "🧠 تحليل الوجه الذكي",
+        "facial_instructions": "📸 إرشادات التصوير:\n\n1. إضاءة مناسبة\n2. بدون فلاتر\n3. بدون مكياج ثقيل\n4. ظهور الوجه بالكامل\n5. زاوية صحيحة\n\nهل أنت مستعد؟",
+        "facial_continue": "✅ نعم، أنا مستعد",
+        "facial_cancel": "❌ إلغاء",
+        "facial_cancelled": "❌ تم إلغاء التحليل.",
+        "facial_ask_gender": "👤 الرجاء اختيار جنسك:",
+        "facial_gender_male": "👨 ذكر",
+        "facial_gender_female": "👩 أنثى",
+        "facial_gender_other": "🧑 أخرى",
+        "facial_ask_age": "📅 الرجاء إدخال عمرك:",
+        "facial_invalid_age": "❌ الرجاء إدخال رقم صحيح بين 1 و 120.",
+        "facial_ask_front_photo": "📷 الرجاء إرسال صورة أمامية.",
+        "facial_ask_right_photo": "📷 الرجاء إرسال صورة جانبية يمين.",
+        "facial_ask_left_photo": "📷 الرجاء إرسال صورة جانبية يسار.",
+        "facial_send_photo": "❌ الرجاء إرسال صورة.",
+        "facial_quality_reject": "❌ جودة الصورة غير مقبولة.\nالسبب: {reason}\nالرجاء إعادة إرسال الصورة.",
+        "facial_accept_photo": "✅ جودة الصورة مقبولة.",
+        "facial_analyzing": "🧠 جاري تحليل وجهك... الرجاء الانتظار لحظة.",
+        "facial_result_summary": "🔍 نتائج التحليل:\n\nدرجة الجمال الإجمالية: {overall:.1f}\nالتماثل: {symmetry:.1f}\nجودة البشرة: {skin:.1f}\nالشباب: {youth:.1f}\nتوازن الحجم: {volume:.1f}\nتناغم الوجه: {harmony:.1f}\n\nتم إرسال التقرير الكامل.",
+        "facial_limit_reached": "⚠️ لقد استخدمت هذه الميزة مرة واحدة بالفعل. للاستخدام المتكرر، يرجى استشارة طبيبك.",
 
         "appt_select_service": "📅 الرجاء اختيار الخدمة:",
         "appt_service_botox": "بوتوكس",
@@ -493,9 +571,6 @@ TEXTS = {
         "patient_appointments_title": "📄 *مواعيدك*",
         "patient_appointments_item": "• {service} – {date} – {status}",
 
-        "facial_analysis_title": "🔍 تحليل الوجه",
-        "facial_analysis_error": "❌ خطأ في تحليل الصورة. يرجى إرسال صورة واضحة للوجه.",
-
         "error_unknown_command": "❓ أمر غير معروف. استخدم القائمة.",
         "error_internal": "❌ خطأ داخلي. الرجاء المحاولة مرة أخرى لاحقاً.",
         "error_invalid_date": "❌ تنسيق التاريخ غير صحيح. استخدم YYYY-MM-DD:",
@@ -548,6 +623,28 @@ TEXTS = {
         "btn_notifications": "🔔 Bildirimler",
         "btn_statistics": "📊 İstatistikler",
         "btn_handoff": "👩‍💼 Görevliye Yönlendir",
+
+        # Facial Analysis
+        "btn_facial_analysis": "🧠 Akıllı Yüz Analizi",
+        "facial_instructions": "📸 Fotoğraf Talimatları:\n\n1. İyi aydınlatma\n2. Filtresiz\n3. Ağır makyajsız\n4. Tam yüz görünsün\n5. Doğru açı\n\nHazır mısınız?",
+        "facial_continue": "✅ Evet, hazırım",
+        "facial_cancel": "❌ İptal",
+        "facial_cancelled": "❌ Analiz iptal edildi.",
+        "facial_ask_gender": "👤 Lütfen cinsiyetinizi seçin:",
+        "facial_gender_male": "👨 Erkek",
+        "facial_gender_female": "👩 Kadın",
+        "facial_gender_other": "🧑 Diğer",
+        "facial_ask_age": "📅 Lütfen yaşınızı girin:",
+        "facial_invalid_age": "❌ Lütfen 1 ile 120 arasında geçerli bir sayı girin.",
+        "facial_ask_front_photo": "📷 Lütfen önden bir fotoğraf gönderin.",
+        "facial_ask_right_photo": "📷 Lütfen sağ profilden bir fotoğraf gönderin.",
+        "facial_ask_left_photo": "📷 Lütfen sol profilden bir fotoğraf gönderin.",
+        "facial_send_photo": "❌ Lütfen bir fotoğraf gönderin.",
+        "facial_quality_reject": "❌ Görüntü kalitesi kabul edilemez.\nSebep: {reason}\nLütfen fotoğrafı tekrar gönderin.",
+        "facial_accept_photo": "✅ Fotoğraf kalitesi kabul edilebilir.",
+        "facial_analyzing": "🧠 Yüzünüz analiz ediliyor... Lütfen bir an bekleyin.",
+        "facial_result_summary": "🔍 Analiz Sonuçları:\n\nGenel Güzellik Puanı: {overall:.1f}\nSimetri: {symmetry:.1f}\nCilt Kalitesi: {skin:.1f}\nGençlik: {youth:.1f}\nHacim Dengesi: {volume:.1f}\nYüz Uyumu: {harmony:.1f}\n\nTam rapor gönderildi.",
+        "facial_limit_reached": "⚠️ Bu özelliği zaten bir kez kullandınız. Tekrar kullanım için lütfen doktorunuza danışın.",
 
         "appt_select_service": "📅 Lütfen hizmeti seçin:",
         "appt_service_botox": "Botox",
@@ -613,9 +710,6 @@ TEXTS = {
         "patient_appointments_empty": "📄 Randevunuz yok.",
         "patient_appointments_title": "📄 *Randevularınız*",
         "patient_appointments_item": "• {service} – {date} – {status}",
-
-        "facial_analysis_title": "🔍 Yüz Analizi",
-        "facial_analysis_error": "❌ Görüntü analiz edilirken hata oluştu. Lütfen net bir yüz fotoğrafı gönderin.",
 
         "error_unknown_command": "❓ Bilinmeyen komut. Menüyü kullanın.",
         "error_internal": "❌ İç hata. Lütfen daha sonra tekrar deneyin.",
