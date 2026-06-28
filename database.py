@@ -1,6 +1,7 @@
 """
 ClinicOS – Database Management
 SQLAlchemy setup, session management, and database initialization.
+Includes all models (including facial analysis models).
 """
 
 from sqlalchemy import create_engine, event
@@ -8,8 +9,25 @@ from sqlalchemy.orm import sessionmaker, scoped_session
 from sqlalchemy.pool import StaticPool, QueuePool
 from config import DATABASE_URL, DATABASE_POOL_SIZE, DATABASE_MAX_OVERFLOW, DATABASE_POOL_TIMEOUT, DATABASE_POOL_RECYCLE, DEBUG_MODE
 from models import Base
-from datetime import datetime  # <-- اضافه شد
 import logging
+
+# Import all models to ensure they are registered with Base
+# This includes facial analysis models defined in models.py
+from models import (
+    Clinic, Staff, Patient, PatientAlias, Session,
+    RawMessage, Event, PatientProfile, PatientMemory,
+    ConversationState, Lead, PipelineHistory, Appointment,
+    AppointmentRequest, ServicePrice, KnowledgeItem,
+    DoctorEdit, OutcomePattern, DailyKPI, EscalationLog,
+    HumanCorrection, SystemMetric, ClinicWorkingHours,
+    FollowupWindow, RetentionPolicy, DataConsent, FeatureFlag,
+    ClinicPersona, ConversationStyle, ObjectionLog,
+    ContentAsset, BrandProfile, VisualMemory, BeforeAfter,
+    DoctorVoice, ContentIdea, ContentWorkflow,
+    # Facial analysis models
+    FacialAnalysis, FacialLandmarks, FacialMetrics,
+    TreatmentRecommendation, FacialBeforeAfter, FacialAnalysisUsage
+)
 
 logger = logging.getLogger(__name__)
 
@@ -78,6 +96,7 @@ def create_default_clinic():
     """Create a default clinic and owner if none exist (single‑clinic mode)."""
     from models import Clinic, Staff
     from config import OWNER_TELEGRAM_ID
+    from datetime import datetime
 
     db = SessionLocal()
     try:
