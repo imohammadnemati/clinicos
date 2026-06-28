@@ -1,6 +1,6 @@
 # ============================================================
 # Clinicos – Dockerfile برای استقرار در Railway
-# فقط FreeLLMAPI به‌عنوان Provider LLM استفاده می‌شود.
+# FreeLLMAPI + Facial Analysis (MediaPipe, OpenCV, ReportLab)
 # بدون Local LLM، بدون STT، بدون Vosk، بدون Whisper
 # ============================================================
 
@@ -12,12 +12,19 @@ FROM python:3.11-slim
 WORKDIR /app
 
 # ============================================================
-# نصب وابستگی‌های سیستمی (حداقل مورد نیاز)
-# فقط برای نصب کتابخانه‌های پایتون که نیاز به کامپایل دارند.
+# نصب وابستگی‌های سیستمی
+# برای OpenCV (بدون GUI) و MediaPipe
 # ============================================================
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     g++ \
+    libgl1-mesa-glx \
+    libglib2.0-0 \
+    libsm6 \
+    libxext6 \
+    libxrender-dev \
+    libgomp1 \
+    libglib2.0-0 \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
@@ -40,6 +47,8 @@ COPY . .
 # متغیرهای محیطی
 # ============================================================
 ENV PYTHONUNBUFFERED=1
+ENV OPENCV_IO_ENABLE_OPENEXR=0   # غیرفعال‌سازی OpenEXR برای کاهش وابستگی
+ENV TF_CPP_MIN_LOG_LEVEL=2       # کاهش لاگ‌های TensorFlow (اگر استفاده شود)
 
 # ============================================================
 # پورت (فقط برای سازگاری)
