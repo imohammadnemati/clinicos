@@ -4,6 +4,7 @@ Core business logic: processes incoming patient messages, manages conversation s
 patient memory, lead scoring, and invokes the LLM router for AI responses.
 
 ONLY FreeLLMAPI is used as the LLM provider.
+Automatically saves new Q&A pairs to KnowledgeItem for future use.
 """
 
 import json
@@ -15,7 +16,7 @@ from typing import Optional
 
 from config import (
     LEAD_THRESHOLD,
-    FREELLMAPI_API_KEY,  # برای بررسی وجود کلید
+    FREELLMAPI_API_KEY,
 )
 from database import SessionLocal
 from models import (
@@ -49,6 +50,28 @@ from llm.cost_manager import CostManager
 from llm.providers.freellmapi_provider import FreeLLMAPIProvider
 
 logger = logging.getLogger(__name__)
+
+# ---------- Helper function to ensure facts keys ----------
+def ensure_facts_keys(facts: dict) -> dict:
+    """Ensure all required keys exist in facts dict with default values."""
+    default = {
+        "intent": "inquiry",
+        "service": "none",
+        "price_interest": False,
+        "urgency": "low",
+        "appointment_request": False,
+        "objection_category": "none",
+        "extracted_question": "",
+        "requires_human": False,
+        "fear_level": None,
+        "trust_level": None,
+        "price_sensitivity": None,
+        "important_memory": None,
+    }
+    for key, value in default.items():
+        if key not in facts:
+            facts[key] = value
+    return facts
 
 # ---------- Initialize LLM Router (once at module load) ----------
 _state_store = StateStore()
@@ -187,8 +210,42 @@ async def update_conversation_state(session_id: int, service: str, intent: str, 
     db.commit()
 
 
-async def generate_reply(clinic_id: int, question: str, patient_id: int, lang: str, history: str) -> str:
-    db = SessionLocal()
+# ========== Auto-save knowledge ==========
+async def save_to_knowledge(clinic_id: int, question: str, answer: str, db):
+    """Save Q&A pair to KnowledgeItem for future reuse."""
+    try:
+        existing = db.query(KnowledgeItem).filter(
+            KnowledgeItem.clinic_id == clinic_id,
+            KnowledgeItem.question_text == question,
+            KnowledgeItem.effective_date <= datetime.utcnow()
+        ).first()
+        if not existing:
+            new_knowledge = KnowledgeItem(
+                clinic_id=clinic_id,
+                question_text=question[:500],
+                answer_text=answer[:2000],
+                service="general",
+                version=1,
+                effective_date=datetime.utcnow(),
+                created_at=datetime.utcnow()
+            )
+            db.add(new_knowledge)
+            db.commit()
+            logger.info(f"✅ New knowledge saved: {question[:50]}...")
+        else:
+            # Update usage count or success rate if needed
+            existing.usage_count += 1
+            db.commit()
+    except Exception as e:
+        logger.warning(f"Failed to save knowledge: {e}")
+
+
+async def generate_reply(clinic_id: int, question: str, patient_id: int, lang: str, history: str, db) -> str:
+    """
+    Generate a reply using knowledge base if available, otherwise use LLM.
+    Automatically saves new Q&A pairs.
+    """
+    # First, check knowledge base
     try:
         knowledge = db.query(KnowledgeItem).filter(
             KnowledgeItem.clinic_id == clinic_id,
@@ -196,15 +253,21 @@ async def generate_reply(clinic_id: int, question: str, patient_id: int, lang: s
         ).order_by(KnowledgeItem.version.desc()).all()
         for k in knowledge:
             if k.question_text and k.question_text in question:
+                logger.info(f"📚 Answer from database: {k.question_text[:30]}...")
                 return k.answer_text
-    finally:
-        db.close()
+    except Exception as e:
+        logger.warning(f"Knowledge base query failed: {e}")
+
+    # Not found, use LLM
     prompt = REPLY_PROMPTS.get(lang, REPLY_PROMPTS["en"]).format(history=history, question=question)
     try:
-        return await _router.generate(prompt, task="conversation")
+        answer = await _router.generate(prompt, task="conversation")
+        # Save for future
+        await save_to_knowledge(clinic_id, question, answer, db)
+        return answer
     except Exception as e:
         logger.error(f"Router generate failed: {e}")
-        return "متشکرم. پیام شما ثبت شد. به زودی پاسخگو خواهیم بود."
+        return "⚠️ خطا در ارتباط با هوش مصنوعی. لطفاً دوباره تلاش کنید."
 
 
 # ---------- Main Processing Function ----------
@@ -330,6 +393,9 @@ async def process_patient_message(
                 "important_memory": None,
             }
 
+        # Ensure all keys exist
+        facts = ensure_facts_keys(facts)
+
         if facts.get("service") in ["none", None] and prev_state and prev_state.current_goal:
             facts["service"] = prev_state.current_goal
 
@@ -432,7 +498,12 @@ async def process_patient_message(
 
         # Generate reply
         answer = await generate_reply(
-            clinic_id, facts.get("extracted_question") or raw_text, patient_id, lang, conversation_history
+            clinic_id,
+            facts.get("extracted_question") or raw_text,
+            patient_id,
+            lang,
+            conversation_history,
+            db  # pass db for knowledge saving
         )
 
         # Update outcome pattern
