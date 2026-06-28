@@ -1,11 +1,12 @@
 """
 ClinicOS Telegram Bot – Final Production Version
 Supports: language selection, role‑based menus, appointment wizard,
-staff management, leads, escalations, and LLM orchestration (FreeLLMAPI).
+staff management, leads, escalations, LLM orchestration (FreeLLMAPI),
+and AI Facial Analysis & Aesthetic Recommendation System.
 Fully internationalized (i18n) – UI texts in Fa, En, Az, Ar, Tr.
 Includes a "Change Language" button in the main menu.
 
-Note: Voice, Photo, and STT features are completely removed.
+Note: Voice, Photo (for general use) and STT features are completely removed.
 Only FreeLLMAPI is used – no external API keys, no local LLM.
 """
 
@@ -32,6 +33,16 @@ from appointment_engine import create_appointment_request
 from kpi_engine import get_kpi_summary
 from scheduler import start_scheduler
 from i18n import get_text
+
+# Import facial analysis handler
+from handlers.facial_analysis import (
+    facial_start, facial_instructions_callback, facial_gender_callback,
+    facial_age, facial_front_photo, facial_right_photo, facial_left_photo,
+    FACIAL_START, FACIAL_INSTRUCTIONS, FACIAL_GENDER, FACIAL_AGE,
+    FACIAL_FRONT_PHOTO, FACIAL_FRONT_CHECK, FACIAL_RIGHT_PHOTO,
+    FACIAL_RIGHT_CHECK, FACIAL_LEFT_PHOTO, FACIAL_LEFT_CHECK,
+    FACIAL_ANALYZING, FACIAL_RESULT
+)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -129,6 +140,11 @@ def get_main_keyboard(role: str, lang: str = "fa"):
             [get_text("btn_ask_clinic", lang), get_text("btn_services", lang)],
             [get_text("btn_human_receptionist", lang), get_text("btn_my_appointments", lang)]
         ]
+    
+    # Add Facial Analysis button for all roles (with role-appropriate label)
+    buttons.append([get_text("btn_facial_analysis", lang)])
+    
+    # Language change button at the bottom
     buttons.append([get_text("btn_change_language", lang)])
     return ReplyKeyboardMarkup(buttons, resize_keyboard=True)
 
@@ -260,6 +276,7 @@ async def main_menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         btn_appointments = get_text("btn_appointments", lang)
         btn_my_appointments = get_text("btn_my_appointments", lang)
         btn_ask = get_text("btn_ask_clinic", lang)
+        btn_facial = get_text("btn_facial_analysis", lang)
 
         if text in (btn_dashboard, btn_home):
             await send_main_menu(update, context, role, clinic_id, db, user_id, lang)
@@ -283,6 +300,9 @@ async def main_menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await show_patient_appointments(update, context, lang)
         elif text == btn_ask and role == 'patient':
             await process_patient_message(update, None, clinic_id, "telegram", str(user_id), text, db=db, lang=lang)
+        elif text == btn_facial:
+            # Start facial analysis flow
+            await facial_start(update, context)
         else:
             await process_patient_message(update, None, clinic_id, "telegram", str(user_id), text, db=db, lang=lang)
     finally:
@@ -782,6 +802,7 @@ def startup_diagnostics():
         logger.info("Redis configured. Scores will be persisted.")
     logger.info(f"Initial provider scores: {INITIAL_SCORES}")
     logger.info("FreeLLMAPI mode active – no external API calls.")
+    logger.info("Facial Analysis module loaded.")
 
 # ========== Main Application ==========
 def main():
@@ -841,9 +862,24 @@ def main():
         fallbacks=[CommandHandler('cancel', lambda u, c: u.message.reply_text("Cancelled"))],
     ))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, main_menu_handler))
+    
+    # Facial Analysis Conversation Handler
+    app.add_handler(ConversationHandler(
+        entry_points=[CallbackQueryHandler(facial_instructions_callback, pattern='^facial_')],
+        states={
+            FACIAL_INSTRUCTIONS: [CallbackQueryHandler(facial_instructions_callback, pattern='^facial_')],
+            FACIAL_GENDER: [CallbackQueryHandler(facial_gender_callback, pattern='^gender_')],
+            FACIAL_AGE: [MessageHandler(filters.TEXT & ~filters.COMMAND, facial_age)],
+            FACIAL_FRONT_PHOTO: [MessageHandler(filters.PHOTO, facial_front_photo)],
+            FACIAL_RIGHT_PHOTO: [MessageHandler(filters.PHOTO, facial_right_photo)],
+            FACIAL_LEFT_PHOTO: [MessageHandler(filters.PHOTO, facial_left_photo)],
+        },
+        fallbacks=[CommandHandler('cancel', lambda u, c: u.message.reply_text("Cancelled"))],
+    ))
+    
     app.add_error_handler(error_handler)
 
-    logger.info("🚀 ClinicOS bot started with FreeLLMAPI (text-only mode)")
+    logger.info("🚀 ClinicOS bot started with FreeLLMAPI, Facial Analysis, and text-only mode")
     app.run_polling()
 
 if __name__ == "__main__":
