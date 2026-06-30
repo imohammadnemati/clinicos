@@ -3,6 +3,7 @@ import os
 import tempfile
 import logging
 import asyncio
+import json
 from datetime import datetime
 from typing import Optional
 
@@ -20,12 +21,14 @@ from database import SessionLocal
 from models import (
     Patient,
     Staff,
+    PatientAlias,
     FacialAnalysis,
     FacialLandmarks,
     FacialMetrics,
     TreatmentRecommendation,
     FacialAnalysisUsage,
-    KnowledgeItem
+    KnowledgeItem,
+    Clinic
 )
 from utils.image_quality import check_image_quality
 from utils.facial_metrics import compute_facial_metrics
@@ -53,35 +56,35 @@ FACIAL_RESULT = 41
 async def facial_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Start facial analysis flow with instructions."""
     user_id = update.effective_user.id
-    db = SessionLocal()
-    try:
-        role = get_user_role(user_id, db)
-        lang = get_user_language(user_id, db) or 'fa'
+    role = get_user_role(user_id)
+    lang = get_user_language(user_id) or 'fa'
 
-        # Check usage limit for patients
-        if role == 'patient':
+    # Check usage limit for patients
+    if role == 'patient':
+        db = SessionLocal()
+        try:
             usage = db.query(FacialAnalysisUsage).filter_by(patient_id=user_id).first()
             if usage and usage.analysis_used:
                 await update.message.reply_text(
                     get_text("facial_limit_reached", lang)
                 )
                 return ConversationHandler.END
+        finally:
+            db.close()
 
-        instructions = get_text("facial_instructions", lang)
-        keyboard = [
-            [InlineKeyboardButton(get_text("facial_continue", lang), callback_data="facial_continue")],
-            [InlineKeyboardButton(get_text("facial_cancel", lang), callback_data="facial_cancel")]
-        ]
-        await update.message.reply_text(instructions, reply_markup=InlineKeyboardMarkup(keyboard))
-        return FACIAL_INSTRUCTIONS
-    finally:
-        db.close()
+    instructions = get_text("facial_instructions", lang)
+    keyboard = [
+        [InlineKeyboardButton(get_text("facial_continue", lang), callback_data="facial_continue")],
+        [InlineKeyboardButton(get_text("facial_cancel", lang), callback_data="facial_cancel")]
+    ]
+    await update.message.reply_text(instructions, reply_markup=InlineKeyboardMarkup(keyboard))
+    return FACIAL_INSTRUCTIONS
 
 async def facial_instructions_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
     await query.answer()
     user_id = query.from_user.id
-    lang = get_user_language(user_id, None) or 'fa'
+    lang = get_user_language(user_id) or 'fa'
 
     if query.data == "facial_cancel":
         await query.edit_message_text(get_text("facial_cancelled", lang))
@@ -101,13 +104,13 @@ async def facial_gender_callback(update: Update, context: ContextTypes.DEFAULT_T
     gender = query.data.split('_')[1]
     context.user_data['facial_gender'] = gender
     user_id = query.from_user.id
-    lang = get_user_language(user_id, None) or 'fa'
+    lang = get_user_language(user_id) or 'fa'
     await query.edit_message_text(get_text("facial_ask_age", lang))
     return FACIAL_AGE
 
 async def facial_age(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     user_id = update.effective_user.id
-    lang = get_user_language(user_id, None) or 'fa'
+    lang = get_user_language(user_id) or 'fa'
     try:
         age = int(update.message.text.strip())
         if age < 1 or age > 120:
@@ -132,7 +135,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE, view:
     """Generic handler for photo uploads."""
     if not update.message.photo:
         user_id = update.effective_user.id
-        lang = get_user_language(user_id, None) or 'fa'
+        lang = get_user_language(user_id) or 'fa'
         await update.message.reply_text(get_text("facial_send_photo", lang))
         return getattr(update, f'FACIAL_{view.upper()}_PHOTO')
 
@@ -147,7 +150,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE, view:
     if not is_valid:
         os.unlink(tmp_path)
         user_id = update.effective_user.id
-        lang = get_user_language(user_id, None) or 'fa'
+        lang = get_user_language(user_id) or 'fa'
         await update.message.reply_text(
             get_text("facial_quality_reject", lang).format(reason=reason)
         )
@@ -156,7 +159,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE, view:
     # Store path
     context.user_data[f'facial_{view}_photo'] = tmp_path
     user_id = update.effective_user.id
-    lang = get_user_language(user_id, None) or 'fa'
+    lang = get_user_language(user_id) or 'fa'
     await update.message.reply_text(get_text("facial_accept_photo", lang))
 
     # Determine next step
@@ -178,7 +181,6 @@ async def perform_facial_analysis(update: Update, context: ContextTypes.DEFAULT_
     db = SessionLocal()
     try:
         # Get patient
-        from models import Patient, PatientAlias
         patient_alias = db.query(PatientAlias).filter_by(platform='telegram', external_user_id=str(user_id)).first()
         if not patient_alias:
             await update.message.reply_text("Patient not found. Please register with /start first.")
@@ -256,7 +258,8 @@ async def perform_facial_analysis(update: Update, context: ContextTypes.DEFAULT_
                     "area": "Forehead",
                     "estimated_units": "20-30",
                     "priority": 1,
-                    "description": "Reduce forehead wrinkles"
+                    "description": "Reduce forehead wrinkles",
+                    "confidence": 0.85
                 }}
             ],
             "disclaimer": "This analysis is for informational purposes only and does not replace a medical consultation."
@@ -265,7 +268,6 @@ async def perform_facial_analysis(update: Update, context: ContextTypes.DEFAULT_
 
         try:
             llm_response = await _router.generate(analysis_prompt, task="facial_analysis")
-            import json
             # Try to parse JSON, fallback to raw text
             try:
                 analysis_data = json.loads(llm_response)
@@ -295,7 +297,7 @@ async def perform_facial_analysis(update: Update, context: ContextTypes.DEFAULT_
             volume_balance_score=metrics.get('volume_balance', 0),
             facial_harmony_score=metrics.get('facial_harmony', 0),
             estimated_apparent_age=age,
-            report_text=report_text if 'report_text' not in locals() else report_text,
+            report_text=report_text if 'report_text' in locals() else llm_response if 'llm_response' in locals() else "",
             status='completed'
         )
         db.add(analysis)
@@ -339,7 +341,7 @@ async def perform_facial_analysis(update: Update, context: ContextTypes.DEFAULT_
             db.add(tr)
 
         # Record usage for patient
-        role = get_user_role(user_id, db)
+        role = get_user_role(user_id)
         if role == 'patient':
             usage = db.query(FacialAnalysisUsage).filter_by(patient_id=patient.id).first()
             if not usage:
@@ -364,15 +366,15 @@ async def perform_facial_analysis(update: Update, context: ContextTypes.DEFAULT_
                 'volume_balance': metrics.get('volume_balance', 0),
                 'harmony': metrics.get('facial_harmony', 0),
                 'recommendations': analysis_data.get('recommendations', []),
-                'title': get_text("facial_report_title", get_user_language(user_id, db) or 'fa'),
+                'title': get_text("facial_report_title", get_user_language(user_id) or 'fa'),
             }
-            pdf_path = generate_facial_report(pdf_data, language=get_user_language(user_id, db) or 'fa')
+            pdf_path = generate_facial_report(pdf_data, language=get_user_language(user_id) or 'fa')
             if pdf_path and os.path.exists(pdf_path):
                 analysis.report_pdf_url = pdf_path
                 db.commit()
 
         # Send results
-        lang = get_user_language(user_id, db) or 'fa'
+        lang = get_user_language(user_id) or 'fa'
         await update.message.reply_text(
             get_text("facial_result_summary", lang).format(
                 overall=metrics.get('overall_beauty', 0),
