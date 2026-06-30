@@ -34,6 +34,9 @@ from kpi_engine import get_kpi_summary
 from scheduler import start_scheduler
 from i18n import get_text
 
+# Import role utilities
+from utils.role_utils import get_user_role, get_user_language, get_user_clinic_id
+
 # Import facial analysis handler
 from handlers.facial_analysis import (
     facial_start, facial_instructions_callback, facial_gender_callback,
@@ -76,15 +79,6 @@ def get_or_create_patient_by_telegram(telegram_id: int, name: str, db) -> Patien
     db.commit()
     return patient
 
-def get_user_language(user_id: int, db) -> str:
-    staff = db.query(Staff).filter_by(telegram_id=user_id).first()
-    if staff and hasattr(staff, 'language') and staff.language:
-        return staff.language
-    patient = get_patient_by_telegram_id(user_id, db)
-    if patient and patient.preferred_language:
-        return patient.preferred_language
-    return None
-
 def set_user_language(user_id: int, lang: str, db):
     staff = db.query(Staff).filter_by(telegram_id=user_id).first()
     if staff:
@@ -94,26 +88,6 @@ def set_user_language(user_id: int, lang: str, db):
         if patient:
             patient.preferred_language = lang
     db.commit()
-
-def get_user_role(user_id: int, db) -> str:
-    staff = db.query(Staff).filter_by(telegram_id=user_id).first()
-    if staff:
-        return staff.role
-    return 'patient'
-
-def get_user_clinic_id(user_id: int, db) -> int:
-    staff = db.query(Staff).filter_by(telegram_id=user_id).first()
-    if staff:
-        return staff.clinic_id
-    patient = get_patient_by_telegram_id(user_id, db)
-    if patient and patient.clinic_id:
-        return patient.clinic_id
-    clinic = db.query(Clinic).first()
-    if not clinic:
-        clinic = Clinic(name="Default Clinic", subdomain="default")
-        db.add(clinic)
-        db.commit()
-    return clinic.id
 
 def get_main_keyboard(role: str, lang: str = "fa"):
     """Return dynamic keyboard with translated labels, including language change button."""
