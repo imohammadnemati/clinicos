@@ -1,7 +1,3 @@
-حتماً. این فایل باید UX را به‌عنوان Product UX Architecture تعریف کند، نه صرفاً ظاهر UI. یعنی مشخص کند هر Role چه چیزی می‌بیند، چه Workflowهایی دارد، اطلاعات چگونه نمایش داده می‌شوند، AI کجا وارد می‌شود، Human takeover چگونه انجام می‌شود و تجربه در Telegram / Web / آینده Instagram چگونه یکپارچه می‌ماند.
-
-متن کامل فایل:
-
 # CLINICOS — PRODUCT UX SPECIFICATION
 **Document:** `CLINICOS_PRODUCT_UX_SPEC.md`  
 **Product:** Clinicos  
