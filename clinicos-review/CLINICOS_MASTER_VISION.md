@@ -1,1780 +1,3295 @@
 # CLINICOS MASTER VISION
-## Master Product Vision & Target Architecture
-**Project:** Clinicos  
-**Document:** Master Vision  
-**Status:** Strategic Source of Truth  
-**Purpose:** Define what Clinicos is intended to become  
-**Important:** This document defines the target product and engineering direction. It does NOT describe the current implementation state.
+**Document:** CLINICOS_MASTER_VISION.md  
+**Version:** 2.0  
+**Status:** Authoritative Target Product Vision  
+**Effective:** Immediately  
+**Priority:** Highest-level product vision document  
+**Language:** English
 ---
-# 1. WHAT IS CLINICOS?
-Clinicos is an AI-native operating system for aesthetic, beauty, dermatology, and cosmetic clinics.
-Clinicos is not merely:
-- a Telegram chatbot
-- an Instagram bot
-- an appointment booking system
-- a CRM
-- a facial-analysis application
-- or a generic AI assistant
-Clinicos is intended to combine all of these capabilities into one intelligent clinic platform.
-The ultimate goal is to create a system that can understand:
-- the clinic
-- its doctors
-- its staff
-- its patients
-- its leads
-- its conversations
-- its services
-- its knowledge
-- its appointments
-- its business performance
-- and the patient's journey
-and use this information to help the clinic acquire, understand, convert, serve, retain, and follow up with patients.
+# 1. Document Purpose
+This document defines the master product vision for Clinicos.
+It establishes what Clinicos is intended to become, who it serves, what problems it solves, how its major capabilities fit together, how AI participates in the platform, how client applications evolve over time, and which architectural principles must remain stable as implementation changes.
+This document describes the **target product and platform direction**.
+It does not attempt to describe every detail of the current codebase.
+The current implementation may differ substantially from this target vision.
+Historical implementation decisions, temporary technical shortcuts, previous AI provider integrations, and legacy repository structures must not override the target architecture defined by this document and the current architecture change set.
 ---
-# 2. THE CORE IDEA
-The central idea behind Clinicos is:
-> Turn the clinic's communication, patient data, knowledge, leads, appointments, follow-ups, and AI capabilities into one continuously improving intelligent system.
-Clinicos should progressively become the clinic's:
-- AI receptionist
-- AI secretary
-- AI sales assistant
-- AI CRM
-- AI patient intelligence system
-- AI knowledge system
-- AI follow-up engine
-- AI analytics assistant
-- AI clinic copilot
-while keeping humans in control whenever human judgment is required.
+# 2. Executive Vision
+Clinicos is an **AI-native clinic operating platform** designed to help clinics manage patient communication, leads, follow-ups, appointments, knowledge, staff workflows, patient intelligence, analytics, automation, and AI-assisted operations through one unified system.
+Clinicos is designed initially for aesthetic, dermatology, beauty, cosmetic, and related outpatient clinics, while maintaining an architecture capable of supporting broader healthcare and clinic workflows in the future.
+Clinicos is not fundamentally a Telegram bot.
+Telegram is the first client and communication interface.
+Clinicos is not fundamentally a Gemini wrapper.
+Gemini is the current and intended AI provider for the platform, while the internal AI layer remains abstracted so that the rest of the system does not become structurally dependent on a specific vendor.
+The long-term product is a **clinic operating system** in which:
+- patients interact through supported communication and application channels,
+- staff manage operations through dedicated interfaces,
+- doctors receive structured clinical and operational assistance,
+- owners and managers receive operational intelligence,
+- AI understands and assists with workflows,
+- deterministic systems remain responsible for authoritative business truth,
+- safety and privacy constraints govern AI behavior,
+- and all major workflows operate on a unified domain model.
+The core platform must remain independent of any individual client application.
 ---
-# 3. PRODUCT PHILOSOPHY
-Clinicos must be designed around the following principles.
-## 3.1 AI-Native
-AI is not an optional feature attached to the product.
-AI is part of the core architecture.
+# 3. Product Definition
+## 3.1 One-Sentence Definition
+Clinicos is an AI-native operating platform that connects patient communication, clinic operations, intelligent automation, and governed AI assistance into one unified clinic system.
+## 3.2 Expanded Definition
+Clinicos provides a common operational layer for clinics.
+It connects:
+- patient identity,
+- patient intelligence,
+- conversations,
+- leads,
+- follow-ups,
+- appointments,
+- clinic knowledge,
+- medical safety,
+- AI agents,
+- facial analysis,
+- notifications,
+- analytics,
+- reporting,
+- clinic management,
+- automation,
+- staff workflows,
+- authentication,
+- integrations,
+- observability,
+- and governance.
+The platform is designed so that these capabilities are not isolated features.
+They operate as interconnected domains within a shared system of record and policy framework.
 ---
-## 3.2 Human-in-the-Loop
-Clinicos must never attempt to replace doctors or appropriate human staff.
-The system should know when to:
-- answer automatically
-- ask for more information
-- recommend an appointment
-- escalate to a human
-- notify a secretary
-- notify a doctor
-- stop making assumptions
+# 4. The Core Product Idea
+The central product idea is:
+> **Clinicos should turn fragmented clinic communication and operational activity into one intelligent, governed, measurable operating system.**
+A modern clinic generates information across many places:
+- patient conversations,
+- social media messages,
+- appointment requests,
+- appointment changes,
+- lead interactions,
+- staff notes,
+- patient questions,
+- treatment history,
+- follow-up events,
+- educational content,
+- medical safety events,
+- payments,
+- operational events,
+- and management decisions.
+Without a unified system, this information becomes fragmented.
+Clinicos should transform these fragmented interactions into structured operational state.
+The system should continuously answer questions such as:
+- Who is this person?
+- What is their relationship with the clinic?
+- What are they interested in?
+- What has already been discussed?
+- What action is currently expected?
+- What appointment exists?
+- What follow-up is due?
+- What communication is permitted?
+- What information is authoritative?
+- What requires human intervention?
+- What can AI safely handle?
+- What requires medical escalation?
+- What happened after an interaction?
+- What should the clinic do next?
 ---
-## 3.3 Patient-Centered
-The system should understand the patient journey rather than treating every message as an isolated question.
-A patient's:
-- previous conversations
-- interests
-- questions
-- concerns
-- services of interest
-- lead status
-- appointment history
-- follow-up history
-- language
-- preferences
-- and relevant interactions
-should contribute to the overall patient context.
+# 5. Product Philosophy
+Clinicos follows several foundational principles.
+## 5.1 Core Platform First
+The core platform is the product foundation.
+Client applications are interfaces to the platform.
+The architecture must not place essential business logic inside Telegram, web, Android, or iOS clients.
 ---
-## 3.4 Clinic-Specific Intelligence
-Every clinic should have its own knowledge and behavior.
-The AI must understand:
-- clinic services
-- prices
-- doctors
-- treatment protocols
-- working hours
-- policies
-- frequently asked questions
-- location
-- contact information
-- appointment rules
-- promotions
-- brand voice
-Clinicos should not behave like one generic AI for every clinic.
+## 5.2 AI-Native, Not AI-Dependent
+AI should be deeply integrated into the platform.
+However, Clinicos must not depend on an LLM for deterministic business truth.
+AI can interpret, generate, summarize, recommend, classify, reason within bounded domains, and assist users.
+AI must not become the source of truth for:
+- appointments,
+- availability,
+- provider schedules,
+- clinic hours,
+- prices,
+- discounts,
+- payment status,
+- consent,
+- authorization,
+- safety state,
+- identity,
+- or other authoritative operational facts.
 ---
-## 3.5 Evidence Before Assumption
-The AI must distinguish between:
-- known facts
-- retrieved clinic knowledge
-- verified patient information
-- inference
-- uncertainty
-- assumptions
-It must never invent clinic policies, prices, medical facts, appointment availability, or patient information.
+## 5.3 Governed AI
+AI operates inside a controlled system.
+The platform must determine:
+- what the AI is allowed to access,
+- what tools it can use,
+- what actions it can request,
+- what actions require validation,
+- what actions require human approval,
+- what information it can disclose,
+- and what safety constraints apply.
+The AI layer is therefore a governed execution layer rather than an unrestricted chatbot.
 ---
-## 3.6 Continuous Improvement
-Clinicos should learn from operational data without blindly learning false information.
-The system should progressively improve:
-- FAQ coverage
-- lead classification
-- follow-up timing
-- response quality
-- patient understanding
-- clinic knowledge
-- conversion intelligence
-- workflow automation
+## 5.4 Gemini as the Current AI Provider
+Google Gemini is the sole active AI provider in the target architecture.
+Clinicos must not use:
+- FreeLLMAPI,
+- OpenRouter,
+- DeepSeek,
+- Qwen,
+- OpenAI,
+- or another external AI provider
+as runtime AI providers in the target architecture.
+The system must not implement multi-provider runtime routing.
+The system must not implement AI provider fallback.
+Gemini model selection may occur internally when different Gemini models are appropriate for different workloads.
+This is considered **single-provider model selection**, not multi-provider routing.
 ---
-# 4. TARGET USERS
-Clinicos is intended to support four primary roles.
-## 4.1 Patient
-The patient interacts with the clinic through supported communication channels.
-The patient should be able to:
-- ask questions
-- receive information
-- understand services
-- request appointments
-- communicate concerns
-- send images when appropriate
-- receive facial-analysis results
-- receive follow-ups
-- interact in their preferred supported language
----
-## 4.2 Secretary
-The secretary should have an AI copilot that reduces repetitive work.
-The system should help the secretary:
-- understand incoming conversations
-- identify hot leads
-- prioritize follow-ups
-- answer repetitive questions
-- manage appointments
-- review patient history
-- receive AI-generated suggestions
-- take over conversations
-- review AI activity
-- recover lost leads
----
-## 4.3 Doctor
-The doctor should have access to relevant patient intelligence.
-The system should help doctors:
-- understand patient context
-- review relevant conversation history
-- review facial-analysis information
-- review treatment interests
-- receive escalations
-- inspect AI-generated summaries
-- maintain control over medical decisions
----
-## 4.4 Clinic Owner / Manager
-The owner should be able to understand and improve clinic operations.
-Clinicos should provide:
-- lead analytics
-- conversion analytics
-- appointment analytics
-- follow-up analytics
-- staff activity insights
-- AI performance insights
-- weekly reports
-- lost-lead insights
-- service demand insights
-- patient behavior insights
----
-# 5. COMMUNICATION CHANNELS
-The initial and currently important communication interface is Telegram.
-However, the product vision is broader.
-Clinicos should be architected so communication channels can evolve independently from the core intelligence layer.
-Potential channel architecture includes:
+## 5.5 AI Provider Abstraction Remains Mandatory
+Although Gemini is the only active provider, the internal architecture must retain an AI abstraction boundary.
+The rest of Clinicos should communicate with the internal AI layer rather than directly depending on Gemini SDK details.
+Conceptually:
 ```text
-Instagram
-Telegram
-Website
-Other messaging channels
-Future communication interfaces
-        ↓
-Unified Communication Layer
-        ↓
-Clinicos Intelligence Layer
+Clinicos Core Platform
+        |
+        v
+Clinicos AI Layer
+        |
+        v
+Gemini Adapter
+        |
+        v
+Google Gemini API
 
-The system must avoid coupling core business logic directly to one communication platform.
+This provides:
 
-⸻
+* implementation isolation,
+* testability,
+* centralized governance,
+* observability,
+* credential isolation,
+* model configuration,
+* easier upgrades,
+* and future technical replaceability.
 
-6. INSTAGRAM / SOCIAL LEAD INTELLIGENCE
+Future provider replacement may be technically possible.
 
-One of the major strategic goals of Clinicos is to handle social-media-originated leads.
-
-Instagram is particularly important for aesthetic clinics because patients frequently discover clinics through:
-
-* posts
-* reels
-* stories
-* comments
-* direct messages
-* advertisements
-* profile visits
-* educational content
-
-Clinicos should ultimately be capable of turning social interactions into structured leads.
-
-The target system should be able to:
-
-* ingest relevant Instagram interactions where official APIs and permissions allow
-* identify potential leads
-* understand intent
-* classify lead temperature
-* extract service interests
-* identify questions
-* identify objections
-* track follow-up status
-* connect the interaction to an existing patient
-* recommend appropriate responses
-* notify a human when needed
-
-Important:
-
-Platform limitations must never be bypassed through unsafe or unofficial methods.
-
-The architecture should isolate social-channel integrations from the core intelligence system.
+However, future provider replacement is not part of the current runtime architecture.
 
 ⸻
 
-7. PATIENT INTELLIGENCE
+6. Why Clinicos Exists
 
-Patient Intelligence is one of the core Clinicos systems.
+Clinics commonly experience several structural problems.
 
-The goal is to transform raw interactions into structured patient understanding.
+6.1 Fragmented Communication
 
-The system should understand:
+Patients may contact a clinic through:
 
-* identity
-* language
-* interests
-* services of interest
-* conversation history
-* lead status
-* appointment status
-* previous appointments
-* follow-up status
-* questions
-* objections
-* preferences
-* relevant behavioral signals
+* messaging applications,
+* social platforms,
+* websites,
+* telephone,
+* forms,
+* and in-person channels.
 
-The patient should not be represented merely as a Telegram user ID.
-
-Clinicos should maintain a persistent patient identity across interactions and channels whenever technically possible and legally appropriate.
+The clinic often lacks one unified operational view.
 
 ⸻
 
-8. IDENTITY RESOLUTION
+6.2 Lead Leakage
 
-Clinicos should support identity resolution.
+Potential patients may ask questions but never receive appropriate follow-up.
 
-The system should be able to determine when multiple interactions belong to the same patient.
+Important leads may be forgotten.
 
-Potential identifiers include:
+Staff may lack visibility into:
 
-* platform identity
-* phone number
-* clinic-specific patient identifier
-* verified contact information
-* patient aliases
-
-Identity resolution must prioritize correctness and privacy.
-
-Never merge two patients merely because they appear similar.
-
-Ambiguous identity matches should require additional evidence or human confirmation.
+* lead stage,
+* intent,
+* last contact,
+* next action,
+* response history,
+* and conversion state.
 
 ⸻
 
-9. LEAD INTELLIGENCE
+6.3 Repetitive Staff Work
 
-Every relevant patient interaction can potentially represent a lead.
+Clinic staff repeatedly answer questions such as:
 
-Clinicos should classify leads using signals such as:
+* services,
+* preparation,
+* aftercare,
+* general policies,
+* scheduling procedures,
+* treatment information,
+* and common administrative questions.
 
-* service interest
-* purchase intent
-* urgency
-* questions about price
-* questions about availability
-* questions about treatment
-* objections
-* previous interactions
-* appointment intent
-* response behavior
-* follow-up history
-
-The system should distinguish between:
-
-* cold lead
-* warm lead
-* hot lead
-* converted lead
-* lost lead
-* inactive lead
-* returning patient
-
-Lead scoring must be explainable.
-
-The system should be able to explain why a lead was classified as high priority.
+This consumes staff time.
 
 ⸻
 
-10. HOT LEAD DETECTION
+6.4 Inconsistent Follow-Up
 
-Clinicos should identify high-conversion-potential leads.
+Follow-ups are often manual.
 
-Examples of hot-lead signals include:
+They may be:
 
-* explicit intent to book
-* asking for available appointment times
-* asking for exact pricing before booking
-* asking about treatment availability
-* requesting doctor information
-* sending required information
-* responding positively to a follow-up
-* repeatedly engaging with treatment-related information
-
-Hot leads should be surfaced to clinic staff.
-
-The system should support configurable thresholds and clinic-specific behavior.
+* forgotten,
+* sent too late,
+* duplicated,
+* sent at inappropriate times,
+* sent after cancellation,
+* sent after a human has already taken over,
+* or sent without sufficient consent.
 
 ⸻
 
-11. LEAD TRACKER
+6.5 Information Loss
 
-Clinicos should maintain a structured Lead Tracker.
+Important patient context may remain inside individual conversations.
 
-Each lead should be associated with relevant information such as:
+The clinic may not know:
 
-* patient
-* source
-* service
-* intent
-* temperature
-* status
-* assigned staff member
-* last interaction
-* next action
-* follow-up status
-* conversion status
-* lost reason when known
-
-The goal is to ensure that leads do not disappear inside chat histories.
+* what the patient previously asked,
+* what treatment they discussed,
+* what concern they expressed,
+* what staff member interacted with them,
+* or what next action is expected.
 
 ⸻
 
-12. FOLLOW-UP ENGINE
+6.6 Lack of Operational Intelligence
 
-One of the most important Clinicos capabilities is automated intelligent follow-up.
+Clinic owners and managers may lack structured answers about:
 
-The system should identify when a patient requires follow-up.
-
-Examples:
-
-* patient asked about a treatment but did not book
-* patient requested a price and disappeared
-* patient showed high purchase intent
-* patient started an appointment flow but abandoned it
-* patient received information but did not respond
-* patient previously expressed interest
-* patient may need post-appointment follow-up
-
-Follow-up timing should not be purely fixed.
-
-The system should eventually learn appropriate timing based on:
-
-* patient behavior
-* lead temperature
-* service
-* previous response patterns
-* clinic configuration
-
-Follow-ups must respect:
-
-* clinic working hours
-* patient experience
-* opt-out preferences
-* platform policies
-* appropriate communication frequency
+* lead volume,
+* conversion,
+* follow-up effectiveness,
+* patient engagement,
+* staff workload,
+* appointment patterns,
+* communication performance,
+* and operational bottlenecks.
 
 ⸻
 
-13. LOST LEAD RECOVERY
+7. Target Users
 
-Clinicos should actively identify lost or abandoned opportunities.
+Clinicos is designed around four primary operational roles.
 
-The system should answer questions such as:
+7.1 Patient
 
-* Which leads stopped responding?
-* Why did they stop?
-* Which services generate the most lost leads?
-* Which leads are worth recovering?
-* When should they be contacted?
-* What message should be sent?
+Patients should be able to:
 
-Lost Lead Recovery should generate actionable recommendations rather than simply reporting statistics.
-
-⸻
-
-14. FAQ INTELLIGENCE
-
-Clinicos should maintain an intelligent clinic FAQ system.
-
-Instead of relying only on manually written FAQs, the system should analyze real patient conversations and identify:
-
-* frequently asked questions
-* unanswered questions
-* ambiguous answers
-* outdated information
-* new recurring questions
-* common objections
-* service misunderstandings
-
-The system should be capable of recommending new FAQ entries.
-
-Potential workflow:
-
-Patient conversations
-        ↓
-Question extraction
-        ↓
-Clustering
-        ↓
-Frequency analysis
-        ↓
-Knowledge candidate
-        ↓
-Human verification
-        ↓
-Clinic Knowledge Base
-
-AI-generated knowledge should not automatically become authoritative clinic policy without appropriate validation.
+* communicate with the clinic,
+* ask questions,
+* receive appropriate information,
+* request appointments,
+* receive reminders,
+* interact with follow-up workflows,
+* provide information,
+* receive approved educational material,
+* access permitted patient information,
+* and escalate to human staff when needed.
 
 ⸻
 
-15. CLINIC KNOWLEDGE BASE
+7.2 Secretary / Staff
 
-Each clinic should have a dedicated knowledge layer.
+Staff should be able to:
 
-Knowledge may include:
-
-* services
-* treatment descriptions
-* pricing
-* doctor profiles
-* clinic policies
-* working hours
-* location
-* preparation instructions
-* aftercare information
-* FAQs
-* promotions
-* contraindications approved by the clinic
-* operational rules
-
-The AI should retrieve clinic-specific knowledge before answering clinic-specific questions.
+* manage conversations,
+* manage leads,
+* manage follow-ups,
+* review patient context,
+* manage appointments,
+* intervene in AI conversations,
+* approve messages,
+* handle escalations,
+* manage clinic information,
+* and monitor operational workflows.
 
 ⸻
 
-16. SECRETARY COPILOT
+7.3 Doctor
 
-Secretary Copilot is a major product feature.
+Doctors should be able to:
 
-It should help the secretary perform repetitive and cognitively expensive tasks.
+* review relevant patient context,
+* access appropriate clinical information,
+* review AI-assisted summaries,
+* receive safety escalations,
+* interact with patient-related workflows,
+* review treatment-related information,
+* and use AI as a controlled clinical-operational assistant.
 
-Potential capabilities:
-
-* summarize patient conversation
-* suggest response
-* classify lead
-* suggest next action
-* identify missing information
-* recommend follow-up
-* identify urgent escalation
-* retrieve clinic knowledge
-* show patient history
-* prepare appointment information
-* detect hot leads
-* recover lost leads
-* draft personalized messages
-
-The secretary must remain able to review and modify AI suggestions.
+AI must not replace professional clinical judgment.
 
 ⸻
 
-17. HUMAN TAKEOVER
+7.4 Owner / Manager
 
-Clinicos must support explicit human takeover.
+Owners and managers should be able to:
 
-When a human takes control:
-
-* AI should stop responding automatically where appropriate
-* conversation ownership should become clear
-* staff should know the current state
-* the AI should preserve context
-* the system should record the handoff
-
-Human takeover should be available for:
-
-* medical questions requiring professional judgment
-* complaints
-* sensitive situations
-* high-value patients
-* uncertain AI responses
-* explicit patient requests
-* operational exceptions
+* monitor clinic performance,
+* analyze leads,
+* review conversion,
+* understand patient behavior,
+* monitor staff workload,
+* review communication performance,
+* monitor financial and operational metrics where integrated,
+* configure clinic-level policies,
+* and make operational decisions using structured data.
 
 ⸻
 
-18. APPOINTMENT ENGINE
+8. The Clinic Operating System Model
 
-Clinicos should provide intelligent appointment functionality.
+Clinicos should be understood as a system connecting several layers.
 
-Capabilities should include:
+Patients
+   |
+   v
+Communication Channels
+   |
+   v
+Conversation & Identity
+   |
+   v
+Patient Intelligence
+   |
+   +-------------------+
+   |                   |
+   v                   v
+Lead Management    Appointments
+   |                   |
+   v                   v
+Follow-Up Engine   Operational Events
+   |                   |
+   +---------+---------+
+             |
+             v
+       Automation Layer
+             |
+             v
+        AI Agent Layer
+             |
+             v
+      Knowledge / Tools
+             |
+             v
+     Governed Actions
+             |
+             v
+   Communication / Staff / Systems
+             |
+             v
+        Analytics
 
-* appointment requests
-* availability handling
-* scheduling
-* rescheduling
-* cancellation
-* reminders
-* appointment status
-* doctor/service association
-* patient association
-* staff visibility
-
-The AI must never claim that an appointment is available unless availability is actually verified.
-
-⸻
-
-19. MEDICAL SAFETY LAYER
-
-Clinicos operates in a healthcare-related domain.
-
-A dedicated medical-safety layer is required.
-
-The system must distinguish:
-
-Administrative information
-        ↓
-General educational information
-        ↓
-Treatment-related information
-        ↓
-Potential medical advice
-        ↓
-High-risk medical situations
-
-Higher-risk situations should trigger stronger safeguards and potentially human escalation.
-
-Clinicos must not:
-
-* fabricate diagnoses
-* guarantee outcomes
-* fabricate contraindications
-* invent medication instructions
-* replace professional medical evaluation
-* present uncertain AI output as confirmed medical fact
+This architecture creates a continuous operational loop.
 
 ⸻
 
-20. MULTILINGUAL INTELLIGENCE
+9. Target Domain Model
 
-Clinicos should support multilingual conversations.
+Clinicos should be organized into clearly defined domains.
 
-Current target languages include:
+Major domains include:
 
-* Persian
-* English
-* Azerbaijani Turkish
-* Arabic
-* Turkish
+1. Identity
+2. Authentication and Authorization
+3. Clinic Management
+4. Patient Intelligence
+5. Conversation
+6. Lead Management
+7. Follow-Up
+8. Appointment Management
+9. Knowledge
+10. Medical Safety
+11. AI and Agent Orchestration
+12. Facial Analysis
+13. Notifications and Communication
+14. Automation and Event Processing
+15. Analytics
+16. Reporting
+17. Observability
+18. Reliability
+19. Security and Privacy
+20. Integrations
+21. Platform Governance
 
-Language detection should happen automatically where possible.
+Each domain must have clear ownership.
 
-The system should preserve the patient’s preferred language throughout the conversation.
-
-Translation must not destroy medical meaning or clinic-specific terminology.
-
-⸻
-
-21. AI / LLM ARCHITECTURE
-
-Clinicos should use an abstraction layer between business logic and LLM providers.
-
-The application should not directly couple every feature to one specific model.
-
-Target architecture:
-
-Clinicos AI Services
-        ↓
-LLM Abstraction Layer
-        ↓
-LLM Gateway / Provider
-        ↓
-Model(s)
+No domain should silently duplicate another domain’s source of truth.
 
 ⸻
 
-22. FREELLMAPI
+10. Identity as a Platform Foundation
 
-FreeLLMAPI is the current reference LLM gateway/provider architecture for Clinicos.
+Clinicos should maintain a unified identity model.
 
-The intended role of FreeLLMAPI is to provide a unified interface between Clinicos and underlying AI models/providers.
+A person may interact through multiple channels.
 
 Conceptually:
 
-Clinicos
-    ↓
-FreeLLMAPI
-    ↓
-Underlying AI model/provider
-    ↓
-Response
+Person
+  |
+  +-- Telegram Identity
+  |
+  +-- Web Identity
+  |
+  +-- Android Identity
+  |
+  +-- iOS Identity
+  |
+  +-- Future Channel Identity
 
-The key architectural benefit is that Clinicos business logic should remain as independent as possible from the underlying model vendor.
+A channel identity is not necessarily the person itself.
 
-FreeLLMAPI should therefore be treated as the current reference AI gateway.
+The platform must distinguish:
 
-However:
+* person identity,
+* clinic membership,
+* channel identity,
+* authentication identity,
+* and authorization context.
 
-The architecture must remain modular enough that the LLM gateway can evolve in the future without rewriting the entire product.
-
-⸻
-
-23. AI PROVIDER ABSTRACTION
-
-The system should support provider abstraction.
-
-The application should be able to evolve between:
-
-* FreeLLMAPI
-* direct providers
-* multiple model providers
-* specialized vision providers
-* specialized embedding providers
-* future AI services
-
-without coupling the entire codebase to one provider.
-
-Provider-specific logic belongs in the provider/integration layer.
-
-Business logic should depend on stable application-level interfaces.
+This is essential for future multi-channel operation.
 
 ⸻
 
-24. MODEL ROUTING
+11. Multi-Tenant Architecture
 
-Future Clinicos architecture may use intelligent model routing.
+Clinicos must support multiple clinics safely.
 
-Different tasks may require different models.
+Each clinic is an isolated tenant.
+
+Tenant isolation applies to:
+
+* patients,
+* conversations,
+* leads,
+* appointments,
+* knowledge,
+* files,
+* AI context,
+* prompts,
+* tools,
+* analytics,
+* reports,
+* notifications,
+* staff,
+* configuration,
+* and audit data.
+
+A request associated with one clinic must never accidentally expose another clinic’s information.
+
+Tenant context must be established before accessing tenant-owned resources.
+
+⸻
+
+12. AI-Native Operating Model
+
+AI should participate throughout the platform.
+
+Examples include:
+
+* conversational AI,
+* lead classification,
+* patient intent detection,
+* conversation summarization,
+* follow-up recommendations,
+* staff copilot,
+* knowledge retrieval,
+* FAQ generation,
+* message drafting,
+* patient segmentation,
+* operational analysis,
+* report generation,
+* facial analysis workflows,
+* and workflow orchestration.
+
+However, each AI capability must operate within an explicit permission and policy boundary.
+
+⸻
+
+13. AI Responsibilities
+
+AI may perform tasks such as:
+
+* understanding natural language,
+* extracting structured information,
+* classifying intent,
+* summarizing conversations,
+* generating draft responses,
+* recommending actions,
+* retrieving approved knowledge,
+* explaining structured data,
+* detecting workflow signals,
+* generating reports,
+* and assisting staff.
+
+AI should operate through controlled tools when accessing external state.
+
+⸻
+
+14. AI Non-Responsibilities
+
+AI must not independently become the authoritative source for:
+
+* patient identity,
+* appointment existence,
+* appointment availability,
+* provider availability,
+* clinic hours,
+* treatment prices,
+* discount validity,
+* payment status,
+* consent state,
+* communication authorization,
+* medical safety state,
+* staff authorization,
+* tenant boundaries,
+* or system configuration.
+
+These facts must originate from authoritative platform domains or approved external systems.
+
+⸻
+
+15. Gemini Strategy
+
+Gemini is the sole active AI provider.
+
+The AI layer may use different Gemini models for different workloads when appropriate.
+
+Potential workload categories include:
+
+* conversational reasoning,
+* structured extraction,
+* summarization,
+* classification,
+* long-context processing,
+* multimodal analysis,
+* image analysis,
+* report generation,
+* and background processing.
+
+The exact Gemini model used for a workload should be configuration-driven and isolated from business-domain logic.
+
+Business domains must not contain hardcoded Gemini SDK logic.
+
+⸻
+
+16. Gemini Failure Strategy
+
+Because Gemini is the only active provider, provider failure must not trigger another AI provider.
+
+Instead, Clinicos must use controlled degradation strategies such as:
+
+* bounded retries,
+* exponential backoff,
+* timeouts,
+* circuit breakers,
+* queueing,
+* deferred execution,
+* deterministic templates,
+* cached safe responses where appropriate,
+* staff handoff,
+* workflow pausing,
+* and graceful degradation.
 
 Examples:
 
-* simple FAQ → inexpensive/fast model
-* complex reasoning → stronger model
-* vision → vision-capable model
-* summarization → efficient model
-* classification → lightweight model
-* medical-safety evaluation → dedicated safety workflow
+If AI response generation fails during a routine patient question:
 
-Routing should optimize:
+Patient Request
+      |
+      v
+Gemini Failure
+      |
+      +--> Retry
+      |
+      +--> Safe deterministic response
+      |
+      +--> Human handoff
 
-* quality
-* latency
-* reliability
-* cost
-* availability
+The exact fallback depends on the workflow.
 
-Routing must never sacrifice safety merely to reduce cost.
-
-⸻
-
-25. MULTI-AGENT ARCHITECTURE
-
-Clinicos may evolve into a multi-agent system.
-
-Possible specialized agents include:
-
-* Patient Agent
-* Lead Agent
-* Follow-up Agent
-* Appointment Agent
-* Knowledge Agent
-* Secretary Agent
-* Medical Safety Agent
-* Analytics Agent
-* Facial Analysis Agent
-* Reporting Agent
-
-Agents should not operate as uncontrolled independent chatbots.
-
-They should communicate through defined interfaces and shared state.
-
-A central orchestration layer should coordinate them.
+No alternative AI provider should be silently invoked.
 
 ⸻
 
-26. AGENT ORCHESTRATION
+17. Client Strategy
 
-Target architecture:
+Clinicos must evolve through clearly defined client phases.
 
-                    Clinicos Orchestrator
-                            │
-        ┌───────────────────┼───────────────────┐
-        ↓                   ↓                   ↓
- Patient Agent         Lead Agent        Appointment Agent
-        │                   │                   │
-        └───────────────────┼───────────────────┘
-                            ↓
-                    Shared Patient Context
-                            ↓
-                     Knowledge Layer
-                            ↓
-                      LLM Gateway
+Phase 1: Telegram Bot
 
-The exact agent architecture should evolve based on actual product complexity.
+The first client is:
 
-Do not introduce agents merely for architectural fashion.
+Telegram Bot
 
-⸻
+The Telegram Bot provides the initial patient and operational interaction layer.
 
-27. AI MEMORY AND CONTEXT
+This phase focuses on validating:
 
-Clinicos should distinguish between:
+* core platform architecture,
+* identity,
+* conversations,
+* patient intelligence,
+* leads,
+* follow-ups,
+* appointments,
+* AI agents,
+* knowledge,
+* notifications,
+* staff workflows,
+* and core operational loops.
 
-* conversation context
-* patient memory
-* clinic knowledge
-* operational state
-* analytics data
-
-AI memory must be controlled.
-
-The system should never blindly store every model-generated statement as permanent truth.
-
-Important facts should have provenance and appropriate confidence.
+Telegram-specific code must remain isolated behind a client/channel boundary.
 
 ⸻
 
-28. KNOWLEDGE LEARNING
+Phase 2: Telegram Bot + Telegram Mini App
 
-Clinicos should progressively improve its clinic-specific knowledge.
+The second phase adds:
 
-Potential pipeline:
+Telegram Mini App
 
-Conversation
-    ↓
-Extract candidate knowledge
-    ↓
-Validate
-    ↓
-Classify
-    ↓
-Store
-    ↓
-Retrieve in future conversations
+The Mini App provides richer interfaces for workflows that are difficult to implement effectively through conversational messages alone.
 
-The system should avoid self-learning loops where hallucinated information becomes permanent knowledge.
+Examples include:
 
-⸻
+* patient dashboards,
+* appointment views,
+* structured forms,
+* treatment information,
+* staff dashboards,
+* lead management,
+* analytics,
+* settings,
+* and interactive workflows.
 
-29. FACIAL ANALYSIS
+The Mini App must use the same core platform APIs and domain services.
 
-Facial analysis is a strategic Clinicos capability.
-
-The goal is to allow a patient to provide a facial image and receive an AI-assisted analysis experience that can increase:
-
-* patient engagement
-* treatment understanding
-* lead conversion
-* personalization
-* clinic value
-
-The system should use computer vision infrastructure such as MediaPipe for facial landmark detection and measurement.
+It must not duplicate business logic.
 
 ⸻
 
-30. FACIAL ANALYSIS PIPELINE
+Phase 3: Web + Android + iOS
 
-Target workflow:
+The third phase expands Clinicos to:
 
-Patient
-   ↓
-Facial Analysis Request
-   ↓
-Instruction / Consent / Safety
-   ↓
-Image Upload
-   ↓
-Image Quality Check
-   ↓
-Quality Retry if Needed
-   ↓
-Face Detection
-   ↓
-Facial Landmarks
-   ↓
-Facial Metrics
-   ↓
-AI Interpretation
-   ↓
-Treatment-oriented Suggestions
-   ↓
-Patient-friendly Result
-   ↓
-Optional Visualization
-   ↓
-Optional PDF Report
-   ↓
-Lead / Follow-up Intelligence
+* Web,
+* Android,
+* iOS,
+* Telegram Bot,
+* Telegram Mini App.
 
-⸻
+All clients must connect to the same core platform.
 
-31. IMAGE QUALITY SYSTEM
+Conceptually:
 
-Before facial analysis, the system should verify image quality.
-
-Potential checks include:
-
-* face visibility
-* lighting
-* blur
-* framing
-* resolution
-* face orientation
-* obstruction
-* number of faces
-
-If quality is insufficient, the system should explain what is wrong and request another image.
-
-The retry experience should be user-friendly.
+                    +----------------+
+                    |   Web Client   |
+                    +----------------+
+                            |
++----------------+          |
+| Telegram Bot   |----------|
++----------------+          |
+                            v
++----------------+    +--------------------+
+| Telegram Mini  |--->| Clinicos Core API |
+| App            |    +--------------------+
++----------------+             |
+                               v
++----------------+       Core Domains
+| Android Client |             |
++----------------+             |
+                               v
++----------------+        AI / Events /
+| iOS Client     |        Communication /
++----------------+        Integrations
 
 ⸻
 
-32. FACIAL LANDMARKS AND METRICS
+18. Telegram Is a Client, Not the Product
 
-MediaPipe can be used to identify facial landmarks.
+This is a critical architectural principle.
 
-The system may derive structured metrics from landmarks.
+Clinicos must not be designed as:
 
-Potential measurements include:
-
-* facial proportions
-* symmetry-related measurements
-* distances
-* ratios
-* geometric relationships
-
-Measurements must be treated as quantitative image-derived observations rather than definitive medical diagnoses.
-
-⸻
-
-33. FACIAL ANALYSIS INTERPRETATION
-
-AI interpretation may translate measurements into understandable patient-facing observations.
-
-The system should avoid:
-
-* diagnosing disease from a photograph
-* making definitive medical claims
-* guaranteeing cosmetic outcomes
-* pretending that an image alone provides complete clinical assessment
-
-Results should clearly remain assistive/informational.
-
-⸻
-
-34. TREATMENT RECOMMENDATION
-
-Facial analysis may generate treatment-oriented suggestions.
-
-Recommendations must be:
-
-* cautious
-* explainable
-* based on available information
-* non-definitive
-* appropriate for human review where needed
-
-The system should ideally connect observations to relevant clinic services without pretending to perform a complete medical consultation.
-
-⸻
-
-35. FACIAL ANALYSIS USAGE POLICY
-
-The intended product policy is:
-
-Standard patient
-
-One free facial analysis during their lifetime.
-
-Doctor / Admin / authorized clinic roles
-
-Unlimited or role-configured access according to clinic policy.
-
-The exact limits must be configurable.
-
-Usage must be tracked reliably.
-
-The system should prevent accidental duplicate consumption.
-
-⸻
-
-36. FACIAL ANALYSIS REPORT
-
-The system should be able to generate a patient-friendly PDF report.
-
-Potential contents:
-
-* analysis summary
-* facial measurements
-* observations
-* visualizations
-* treatment-oriented suggestions
-* disclaimers
-* clinic branding
-* patient information where appropriate
-
-PDF generation should support multilingual output, including RTL languages.
-
-⸻
-
-37. FACIAL ANALYSIS VISUALIZATION
-
-Where technically and ethically appropriate, Clinicos should support visual presentation of analysis.
-
-Potential features:
-
-* landmark visualization
-* measurement overlays
-* facial regions
-* before/after comparison
-* structured result cards
-
-Visualizations must accurately represent what was actually measured.
-
-Never fabricate visual analysis.
-
-⸻
-
-38. BEFORE / AFTER SYSTEM
-
-Clinicos should support before/after comparison for applicable treatments.
-
-Potential functionality:
-
-* store before image
-* store after image
-* associate images with patient/treatment
-* compare relevant metrics
-* display visual differences
-* generate reports
-
-Image comparison must respect patient privacy and consent.
-
-⸻
-
-39. AGING SIMULATION
-
-A future capability may include aging simulation or textual age-related prediction.
-
-This must be treated as an estimate/simulation rather than a factual prediction.
-
-The system must clearly distinguish:
-
-* simulation
-* prediction
-* measurement
-* medical fact
-
-⸻
-
-40. VISION AI
-
-Clinicos should be capable of incorporating vision-capable AI models where available.
-
-Vision may be used for:
-
-* facial image understanding
-* image quality assistance
-* visual interpretation
-* document/image understanding
-* future clinic workflows
-
-Vision should remain behind an abstraction layer rather than becoming hard-coded into the patient agent.
-
-⸻
-
-41. PRICING INTELLIGENCE
-
-Clinicos should eventually assist clinics with pricing-related interactions.
-
-Potential capabilities:
-
-* retrieve current clinic pricing
-* answer pricing questions
-* compare service packages
-* explain what affects price
-* identify price-sensitive leads
-* suggest appropriate next actions
-
-The system must never invent prices.
-
-Prices must come from authoritative clinic configuration or verified knowledge.
-
-⸻
-
-42. CONVERSION INTELLIGENCE
-
-Clinicos should optimize the complete journey:
-
-Attention
- ↓
-Interaction
- ↓
-Question
- ↓
-Interest
- ↓
-Lead
- ↓
-Qualified Lead
- ↓
-Hot Lead
- ↓
-Appointment
- ↓
-Visit
- ↓
-Treatment
- ↓
-Follow-up
- ↓
-Retention
-
-The system should identify where patients drop out.
-
-It should help the clinic improve conversion at each stage.
-
-⸻
-
-43. A/B TESTING
-
-Clinicos should eventually support experimentation.
-
-Possible experiments:
-
-* response wording
-* follow-up timing
-* CTA
-* educational message
-* offer presentation
-* lead recovery strategy
-* appointment prompts
-
-A/B testing should measure actual outcomes.
-
-The system must avoid claiming that one strategy is better without sufficient data.
-
-⸻
-
-44. ANALYTICS
-
-Clinicos should provide operational and AI analytics.
-
-Important metrics may include:
-
-* leads
-* qualified leads
-* hot leads
-* appointments
-* conversion rate
-* response time
-* follow-up completion
-* lost leads
-* recovered leads
-* service demand
-* AI response quality
-* human takeover rate
-* patient engagement
-* facial-analysis usage
-* facial-analysis-to-lead conversion
-
-⸻
-
-45. WEEKLY REPORT
-
-Clinicos should provide an automated weekly report.
-
-The report should summarize:
-
-* lead volume
-* lead quality
-* hot leads
-* appointments
-* conversions
-* lost leads
-* recovered leads
-* top patient questions
-* unanswered questions
-* service demand
-* staff activity
-* AI performance
-* recommended actions
-
-The goal is not just reporting.
-
-The report should answer:
-
-“What should the clinic do next week to improve?”
-
-⸻
-
-46. AI PERFORMANCE MONITORING
-
-Clinicos should eventually monitor its own AI performance.
-
-Possible metrics:
-
-* successful responses
-* failed responses
-* escalation rate
-* human correction rate
-* hallucination reports
-* unanswered questions
-* response latency
-* token usage
-* cost
-* lead conversion impact
-
-AI performance should be evaluated using measurable outcomes rather than subjective claims.
-
-⸻
-
-47. COST OPTIMIZATION
-
-AI infrastructure should be cost-aware.
-
-The system should optimize:
-
-* model selection
-* prompt length
-* context size
-* caching
-* retrieval
-* repeated requests
-* unnecessary model calls
-
-However:
-
-Cost optimization must never compromise patient safety or critical correctness.
-
-⸻
-
-48. VOICE NOTES — FUTURE CAPABILITY
-
-Voice interaction is a future capability.
-
-The system may eventually support:
-
-* patient voice messages
-* secretary voice messages
-* voice transcription
-* voice understanding
-* voice-to-text workflow
-* future voice responses
-
-Potential technologies may include external STT services.
-
-Voice must remain modular and must not complicate the core product architecture unnecessarily.
-
-⸻
-
-49. NOTIFICATION SYSTEM
-
-Clinicos should eventually support intelligent notifications.
-
-Examples:
-
-* hot lead detected
-* urgent escalation
-* appointment request
-* missed follow-up
-* lost lead
-* high-value patient
-* facial analysis completed
-* human takeover required
-* system failure
-
-Notifications should be configurable by role.
-
-⸻
-
-50. PATIENT PRIORITIZATION
-
-Clinicos should be capable of prioritizing patients based on business and operational signals.
-
-Potential categories:
-
-* VIP
-* hot lead
-* urgent
-* follow-up required
-* inactive
-* returning patient
-* high-value patient
-
-Prioritization must be explainable and configurable.
-
-⸻
-
-51. PRIVACY AND DATA PROTECTION
-
-Clinicos handles sensitive patient-related information.
-
-The architecture must prioritize:
-
-* data minimization
-* access control
-* role-based permissions
-* encryption where appropriate
-* secure secrets management
-* auditability
-* safe logging
-* patient privacy
-* image privacy
-* controlled data retention
-
-Patient images must receive additional protection.
-
-⸻
-
-52. SECURITY
-
-Security is a first-class requirement.
-
-The system must protect:
-
-* authentication tokens
-* API keys
-* database credentials
-* patient information
-* facial images
-* clinic information
-* staff information
-
-Never expose secrets in:
-
-* Git
-* logs
-* AI prompts
-* Notebook sources
-* public documentation
-* error messages
-
-⸻
-
-53. SCALABILITY
-
-Clinicos should eventually support multiple clinics.
-
-The architecture should be multi-tenant.
-
-A clinic’s:
-
-* patients
-* staff
-* knowledge
-* pricing
-* services
-* conversations
-* analytics
-* AI configuration
-
-must remain isolated from other clinics.
-
-No clinic should accidentally access another clinic’s data.
-
-⸻
-
-54. MULTI-TENANT AI
-
-AI context must be clinic-specific.
-
-For every AI request, the system should understand the appropriate:
-
-* clinic
-* patient
-* role
-* language
-* conversation
-* knowledge
-* permissions
-
-Cross-clinic knowledge leakage is unacceptable.
-
-⸻
-
-55. CONFIGURABILITY
-
-Clinics should eventually be able to configure:
-
-* services
-* prices
-* doctors
-* working hours
-* staff
-* AI tone
-* escalation rules
-* follow-up rules
-* lead thresholds
-* language behavior
-* facial-analysis settings
-* notification rules
-
-The system should avoid hard-coding clinic-specific behavior.
-
-⸻
-
-56. OBSERVABILITY
-
-Clinicos should be observable in production.
-
-Important signals:
-
-* application errors
-* API errors
-* LLM errors
-* latency
-* database errors
-* Redis errors
-* queue/scheduler errors
-* failed workflows
-* Telegram errors
-* image-processing errors
-* PDF generation errors
-
-Critical workflows should have traceable logs.
-
-Logs must not expose sensitive patient data unnecessarily.
-
-⸻
-
-57. RELIABILITY
-
-Clinicos should be designed for graceful failure.
-
-If the LLM is unavailable:
-
-* the system should fail safely
-* it should not fabricate answers
-* appropriate fallback behavior should occur
-* critical actions should not be falsely confirmed
-
-If the database is unavailable:
-
-* the system must not pretend data was saved
-
-If appointment availability cannot be verified:
-
-* the system must not claim availability
-
-If facial analysis fails:
-
-* the patient should receive a clear explanation and appropriate retry/fallback behavior
-
-⸻
-
-58. ARCHITECTURAL MODULARITY
-
-The system should be divided into logical modules.
-
-Potential major domains:
-
-Identity
-Patient Intelligence
-Conversation
-Lead Management
-Follow-up
-Appointments
-Knowledge
-Medical Safety
-AI / LLM
-Facial Analysis
-Notifications
-Analytics
-Reporting
-Authentication
-Clinic Management
-
-Each domain should have clear responsibilities.
-
-Avoid creating a single giant module containing unrelated business logic.
-
-⸻
-
-59. EVENT-DRIVEN EVOLUTION
-
-As Clinicos grows, important events should be represented explicitly.
-
-Examples:
-
-lead.created
-lead.updated
-lead.became_hot
-appointment.requested
-appointment.booked
-appointment.cancelled
-followup.required
-followup.completed
-human_takeover.started
-facial_analysis.started
-facial_analysis.completed
-patient.returned
-knowledge_candidate.created
-
-This can enable future automation without tightly coupling every module.
-
-⸻
-
-60. FUTURE AUTOMATION ENGINE
-
-Clinicos should eventually support rule-based and AI-assisted automation.
-
-Example:
-
-IF
-patient shows high intent
-AND
-appointment not booked
-AND
-follow-up allowed
-THEN
-create follow-up task
-AND
-notify secretary
-AND
-recommend personalized message
-
-Automation must remain configurable and auditable.
-
-⸻
-
-61. PRODUCT EXPERIENCE
-
-Clinicos should feel:
-
-* intelligent
-* fast
-* professional
-* trustworthy
-* personalized
-* simple
-* human
-
-AI should not make the product feel robotic.
-
-The system should minimize unnecessary questions.
-
-It should remember relevant context.
-
-⸻
-
-62. AI PERSONALITY
-
-The exact communication style may vary by clinic.
-
-However, default behavior should be:
-
-* professional
-* friendly
-* concise when appropriate
-* clear
-* empathetic
-* non-manipulative
-* medically cautious
-
-The system should never pressure patients into treatment.
-
-⸻
-
-63. LEAD CONVERSION WITHOUT MANIPULATION
-
-Clinicos is intended to improve conversion.
-
-However, conversion must not rely on:
-
-* deception
-* fabricated urgency
-* fake scarcity
-* false medical claims
-* manipulation
-* fear-based selling
-
-The goal is:
-
-Help the right patient make an informed decision and help the clinic avoid losing legitimate opportunities.
-
-⸻
-
-64. PROJECT DEVELOPMENT PHILOSOPHY
-
-Clinicos should be developed toward the target architecture, not merely patched indefinitely around historical implementation decisions.
-
-When the current code conflicts with the target architecture:
-
-1. Identify the conflict.
-2. Explain it.
-3. Determine whether migration is necessary.
-4. Preserve working functionality where possible.
-5. Refactor incrementally.
-6. Test after each significant change.
-
-Do not blindly preserve bad historical architecture simply because it already exists.
-
-⸻
-
-65. AI CODING ASSISTANT ROLE
-
-Any AI coding assistant working on Clinicos should act as:
-
-* Senior Software Architect
-* Senior Backend Engineer
-* Senior AI Engineer
-* Product Engineer
-* Security Reviewer
-* Database Reviewer
-* Code Reviewer
-* Testing Engineer
-* Architecture Guardian
-
-The AI assistant must not behave like a blind code generator.
-
-⸻
-
-66. REQUIRED AI DEVELOPMENT PROCESS
-
-Before implementing a significant feature:
-
-Understand the requirement
-        ↓
-Inspect current code
-        ↓
-Inspect related architecture
-        ↓
-Identify constraints
-        ↓
-Compare current state with target vision
-        ↓
-Design solution
-        ↓
-Explain trade-offs
-        ↓
-Implement
-        ↓
-Test
-        ↓
-Review
-        ↓
-Verify
-
-⸻
-
-67. NO HALLUCINATION POLICY
-
-The AI assistant must never invent:
-
-* files
-* functions
-* classes
-* APIs
-* database tables
-* environment variables
-* dependencies
-* deployment states
-* test results
-* external service capabilities
-
-If information is missing:
-
-Say that it is missing.
-
-If something has not been tested:
-
-Say that it has not been tested.
-
-If something is an assumption:
-
-Label it as an assumption.
-
-⸻
-
-68. FACT / INFERENCE / HYPOTHESIS
-
-When ambiguity exists, the AI should distinguish:
-
-FACT
-
-Verified from the repository, database, documentation, or actual test.
-
-INFERENCE
-
-Strongly implied but not directly verified.
-
-HYPOTHESIS
-
-Possible explanation that requires verification.
-
-ASSUMPTION
-
-Temporary assumption required to proceed.
-
-This distinction is especially important for debugging and architecture decisions.
-
-⸻
-
-69. CHANGE MANAGEMENT
-
-Every significant architecture change should document:
-
-* Why the change is needed
-* What problem it solves
-* What alternatives were considered
-* What files/modules are affected
-* What risks exist
-* How migration will occur
-* How it will be tested
-
-⸻
-
-70. CURRENT IMPLEMENTATION VS TARGET VISION
-
-This distinction is critical.
-
-The current repository may contain:
-
-* incomplete features
-* temporary architecture
-* legacy code
-* technical debt
-* experimental features
-* abandoned providers
-* partially implemented systems
-
-None of these automatically define the final Clinicos product.
-
-The target vision defined in this document represents the intended destination.
-
-The actual repository represents the current starting point.
-
-The engineering task is to intelligently bridge the two.
-
-⸻
-
-71. PRIORITY ORDER
-
-When deciding what to build next, consider:
-
-1. Patient safety
-2. Data security
-3. Core product correctness
-4. Reliability
-5. Patient experience
-6. Clinic operational value
-7. Lead conversion value
-8. Scalability
-9. Cost efficiency
-10. Nice-to-have features
-
-⸻
-
-72. FINAL PRODUCT VISION
-
-The ultimate Clinicos experience should look conceptually like this:
-
-                    ┌─────────────────────────┐
-                    │        CLINICOS         │
-                    │  AI Clinic OS           │
-                    └────────────┬────────────┘
-                                 │
-             ┌───────────────────┼───────────────────┐
-             │                   │                   │
-             ▼                   ▼                   ▼
-       Patient AI          Clinic Copilot       Management AI
-             │                   │                   │
-             ▼                   ▼                   ▼
-      Patient Intelligence   Secretary AI       Analytics
-      Lead Intelligence      Doctor Support     Weekly Reports
-      Follow-up              Human Takeover     KPIs
-      Appointments            Knowledge          Insights
-             │                   │                   │
-             └───────────────────┼───────────────────┘
-                                 │
-                    ┌────────────▼────────────┐
-                    │   CLINICOS AI LAYER    │
-                    │                         │
-                    │ LLM / Agents / Vision  │
-                    │ Knowledge / Safety     │
-                    │ Orchestration / Memory │
-                    └────────────┬────────────┘
-                                 │
-                    ┌────────────▼────────────┐
-                    │     FREE LLM API        │
-                    │   Reference AI Gateway  │
-                    └────────────┬────────────┘
-                                 │
-               ┌─────────────────┼─────────────────┐
-               ▼                 ▼                 ▼
-             LLMs             Vision            Future AI
-
-⸻
-
-73. THE FINAL GOAL
-
-Clinicos should eventually become a system where a clinic does not merely “use an AI chatbot.”
+“A Telegram bot that eventually gets more features.”
 
 Instead:
 
-The clinic has an intelligent digital operating layer that understands its patients, conversations, leads, appointments, knowledge, staff workflows, and business performance.
+“A clinic operating platform whose first client is Telegram.”
 
-The AI should continuously help the clinic:
+This distinction must influence architecture, APIs, identity, authorization, communication, domain boundaries, and future development.
 
-Acquire patients
-      ↓
-Understand patients
-      ↓
-Qualify leads
-      ↓
-Convert leads
-      ↓
-Book appointments
-      ↓
-Support patients
-      ↓
-Assist staff
-      ↓
-Support doctors
-      ↓
-Follow up
-      ↓
-Recover lost opportunities
-      ↓
-Analyze performance
-      ↓
-Improve the clinic
-
-That is the ultimate destination of Clinicos.
+Telegram-specific assumptions must not leak into the core domain model.
 
 ⸻
 
-74. MASTER RULE
+19. Client Independence
 
-When developing Clinicos, always ask:
+Business logic must live in the core platform.
 
-“Does this change move Clinicos closer to the intended product, or does it merely patch the current implementation?”
+Clients should primarily handle:
 
-Prefer solutions that move the system toward the intended architecture while maintaining production stability.
+* presentation,
+* interaction,
+* local UI state,
+* authentication flows,
+* channel-specific capabilities,
+* and client-specific experience.
 
-The goal is not to preserve the past.
+Clients must not own:
 
-The goal is to build the best version of Clinicos.
+* patient business rules,
+* lead scoring logic,
+* follow-up policies,
+* safety rules,
+* appointment truth,
+* consent policy,
+* tenant isolation,
+* AI governance,
+* or critical authorization decisions.
 
 ⸻
 
-END OF CLINICOS MASTER VISION
+20. Communication Layer
+
+Communication must be channel-agnostic.
+
+The communication architecture should support:
+
+* Telegram,
+* Instagram,
+* WhatsApp,
+* SMS,
+* email,
+* web chat,
+* mobile push,
+* in-app messaging,
+* voice,
+* and internal staff notifications.
+
+Telegram is the initial active channel.
+
+Future channels must be implemented as adapters rather than forcing business domains to understand provider-specific transport details.
+
+⸻
+
+21. Business Intent Versus Communication
+
+Clinicos must maintain a strict separation between:
+
+* why a communication should happen,
+* whether it is allowed,
+* what should be said,
+* how it should be delivered,
+* and which channel should deliver it.
+
+The conceptual model is:
+
+Business Domain
+      |
+      v
+Business Intent
+      |
+      v
+Policy Validation
+      |
+      v
+Message Composition
+      |
+      v
+Communication Layer
+      |
+      v
+Channel Adapter
+      |
+      v
+Provider
+
+This prevents communication logic from becoming scattered across the system.
+
+⸻
+
+22. Patient Intelligence
+
+Clinicos should maintain a structured intelligence layer around each patient.
+
+Patient intelligence may include:
+
+* identity,
+* language preference,
+* communication preferences,
+* interaction history,
+* lead status,
+* interests,
+* appointment history,
+* follow-up state,
+* relevant conversation summaries,
+* service history where available,
+* engagement signals,
+* preferences,
+* operational tags,
+* and other permitted structured information.
+
+AI-generated information must be clearly distinguished from authoritative records.
+
+⸻
+
+23. Conversation Intelligence
+
+The conversation system should transform raw communication into structured context.
+
+It should support:
+
+* conversation history,
+* message normalization,
+* intent detection,
+* sentiment or interaction signals where appropriate,
+* entity extraction,
+* summaries,
+* topic tracking,
+* lead signals,
+* action detection,
+* escalation detection,
+* and staff takeover.
+
+Conversation history remains owned by the Conversation domain.
+
+Communication infrastructure stores transport and delivery metadata, not the complete business meaning of the conversation.
+
+⸻
+
+24. Lead Management
+
+Clinicos should provide a complete lead lifecycle.
+
+Potential states may include:
+
+NEW
+QUALIFYING
+QUALIFIED
+ENGAGED
+CONSIDERING
+APPOINTMENT_REQUESTED
+BOOKED
+COMPLETED
+CONVERTED
+LOST
+REACTIVATION
+
+The exact lifecycle may evolve.
+
+Lead management should integrate with:
+
+* conversations,
+* patient intelligence,
+* follow-ups,
+* appointments,
+* AI agents,
+* analytics,
+* and staff workflows.
+
+AI may assist with lead classification and recommendations.
+
+The authoritative lead state remains a platform domain state.
+
+⸻
+
+25. Follow-Up Engine
+
+Follow-up should be implemented as a dedicated policy-aware operational system.
+
+It should support:
+
+* lead follow-up,
+* patient follow-up,
+* appointment reminders,
+* no-show follow-up,
+* post-service follow-up,
+* administrative follow-up,
+* human callbacks,
+* reactivation,
+* and approved campaigns.
+
+A follow-up must not be treated as permanent permission to contact a patient.
+
+Before execution, the system should revalidate:
+
+* consent,
+* safety state,
+* patient state,
+* appointment state,
+* human ownership,
+* timing,
+* frequency limits,
+* communication preferences,
+* channel availability,
+* and other applicable policies.
+
+⸻
+
+26. Appointment Truth
+
+Appointments are authoritative operational objects.
+
+AI must not invent:
+
+* appointment times,
+* appointment availability,
+* provider availability,
+* clinic hours,
+* booking confirmations,
+* cancellations,
+* or rescheduling outcomes.
+
+When an AI agent needs appointment information, it must retrieve it from the authoritative appointment system.
+
+⸻
+
+27. Knowledge System
+
+Clinicos should provide a governed knowledge layer.
+
+Knowledge may include:
+
+* clinic information,
+* service information,
+* treatment information,
+* preparation instructions,
+* aftercare instructions,
+* FAQs,
+* policies,
+* approved educational content,
+* staff procedures,
+* and other approved documents.
+
+The knowledge system should support:
+
+* retrieval,
+* versioning,
+* metadata,
+* tenant isolation,
+* permissions,
+* provenance,
+* freshness,
+* and content governance.
+
+⸻
+
+28. Dynamic Truth Versus Knowledge
+
+The platform must distinguish between:
+
+Knowledge
+
+Stable or semi-stable information such as:
+
+* treatment explanations,
+* educational content,
+* policies,
+* FAQs,
+* preparation guidance.
+
+Operational Truth
+
+Live information such as:
+
+* appointment availability,
+* current schedules,
+* current pricing,
+* current discounts,
+* payment state,
+* staff availability,
+* workflow state.
+
+Dynamic operational truth must come from authoritative tools or systems.
+
+RAG must not be treated as a substitute for live operational data.
+
+⸻
+
+29. Medical Safety
+
+Medical safety is a first-class platform domain.
+
+Clinicos may assist with health-related communication, but AI must operate within explicit safety boundaries.
+
+The platform should support:
+
+* risk detection,
+* escalation,
+* human handoff,
+* safety-aware communication,
+* adverse-event workflows,
+* clinical information boundaries,
+* and auditability.
+
+Commercial objectives must never override medical safety.
+
+⸻
+
+30. Safety Hierarchy
+
+The system should prioritize:
+
+1. Medical Safety
+2. Privacy and Confidentiality
+3. Consent
+4. Authorization
+5. Operational Correctness
+6. User Preferences
+7. Patient Convenience
+8. Communication Reliability
+9. Commercial Optimization
+
+This hierarchy must guide conflicting workflow decisions.
+
+⸻
+
+31. Facial Analysis
+
+Clinicos may provide AI-assisted facial analysis capabilities for appropriate clinic workflows.
+
+Potential capabilities may include:
+
+* image quality validation,
+* facial region detection,
+* structured visual observations,
+* aesthetic feature analysis,
+* before-and-after comparison support,
+* and patient education visualization.
+
+Facial analysis must remain clearly separated from unsupported diagnosis.
+
+Medical or aesthetic conclusions must respect the defined safety boundaries.
+
+Patient images are sensitive data and require appropriate:
+
+* consent,
+* access control,
+* retention,
+* encryption,
+* tenant isolation,
+* and audit controls.
+
+⸻
+
+32. Notifications
+
+Clinicos should provide a unified notification system.
+
+Notification categories may include:
+
+* appointment reminders,
+* operational notifications,
+* follow-ups,
+* staff notifications,
+* safety escalations,
+* authentication notifications,
+* administrative notices,
+* and approved marketing communications.
+
+Notification authorization must be policy-driven.
+
+A notification intent does not automatically authorize delivery.
+
+⸻
+
+33. Consent
+
+Communication consent is a first-class concept.
+
+The system must distinguish between:
+
+* transactional communication,
+* operational communication,
+* clinical safety communication,
+* marketing communication,
+* authentication communication,
+* and internal staff communication.
+
+Unknown consent must not be interpreted as positive marketing consent.
+
+Revoked consent must be respected.
+
+Communication workflows must revalidate applicable consent before sending.
+
+⸻
+
+34. Human-in-the-Loop
+
+Clinicos must support controlled human takeover.
+
+A staff member may:
+
+* take ownership of a conversation,
+* pause AI,
+* review an AI-generated message,
+* edit a message,
+* reject a recommendation,
+* approve a message,
+* resume AI,
+* or permanently disable AI for a workflow.
+
+AI must not silently override active human ownership.
+
+⸻
+
+35. AI Approval Modes
+
+AI-generated communication should support controlled approval modes:
+
+AUTO
+STAFF_APPROVAL
+STAFF_ONLY
+DISABLED
+
+The appropriate mode depends on:
+
+* workflow risk,
+* medical sensitivity,
+* business impact,
+* clinic policy,
+* and system configuration.
+
+High-risk communication should use stricter approval.
+
+⸻
+
+36. Multilingual Platform
+
+Clinicos should support:
+
+* Persian,
+* English,
+* Azerbaijani Turkish,
+* Arabic,
+* Turkish.
+
+Language should be handled as a platform capability rather than hardcoded into a single client.
+
+The system should support:
+
+* language preference,
+* language detection,
+* localization,
+* RTL interfaces,
+* multilingual knowledge,
+* multilingual AI interaction,
+* localized templates,
+* and code-switching where appropriate.
+
+⸻
+
+37. Analytics
+
+Clinicos should transform operational activity into measurable intelligence.
+
+Analytics should cover areas such as:
+
+* leads,
+* conversion,
+* patient engagement,
+* follow-up effectiveness,
+* appointment behavior,
+* communication delivery,
+* staff activity,
+* AI performance,
+* workflow performance,
+* channel performance,
+* operational efficiency,
+* and clinic-level trends.
+
+Analytics must be based on reliable event and domain data.
+
+⸻
+
+38. Reporting
+
+Clinicos should provide reports for different roles.
+
+Examples include:
+
+Staff Reports
+
+* unresolved conversations,
+* pending follow-ups,
+* active leads,
+* staff workload,
+* appointment activity.
+
+Doctor Reports
+
+* relevant patient summaries,
+* safety escalations,
+* clinical workflow signals.
+
+Management Reports
+
+* lead funnel,
+* conversion,
+* patient activity,
+* operational performance,
+* communication effectiveness,
+* AI usage,
+* and system reliability.
+
+Reports must distinguish:
+
+* raw facts,
+* calculated metrics,
+* AI-generated interpretation,
+* and recommendations.
+
+⸻
+
+39. Automation and Event Engine
+
+Clinicos should use event-driven architecture where appropriate.
+
+Examples of events include:
+
+patient.created
+conversation.received
+lead.created
+lead.updated
+appointment.created
+appointment.updated
+appointment.cancelled
+followup.created
+followup.scheduled
+followup.sent
+followup.failed
+safety.escalated
+communication.sent
+communication.delivered
+communication.failed
+
+Events represent facts that occurred.
+
+Commands represent requested actions.
+
+The system must not confuse the two.
+
+⸻
+
+40. Reliability Philosophy
+
+Clinicos should assume that external systems and AI services can fail.
+
+The platform must therefore support:
+
+* retries,
+* timeouts,
+* idempotency,
+* deduplication,
+* circuit breakers,
+* queueing,
+* backpressure,
+* dead-letter handling,
+* reconciliation,
+* observability,
+* graceful degradation,
+* and recovery procedures.
+
+No critical workflow should depend on an assumption of perfect external availability.
+
+⸻
+
+41. AI Reliability
+
+AI reliability must be measured independently from application availability.
+
+Metrics may include:
+
+* latency,
+* error rate,
+* timeout rate,
+* structured-output validity,
+* tool-call failure rate,
+* hallucination rate,
+* safety violations,
+* escalation rate,
+* human correction rate,
+* and task success rate.
+
+AI output should not be considered successful merely because the API returned HTTP success.
+
+⸻
+
+42. AI Evaluation
+
+Clinicos should maintain continuous evaluation of AI behavior.
+
+Evaluation should include:
+
+* factual accuracy,
+* groundedness,
+* instruction following,
+* safety,
+* multilingual quality,
+* structured extraction accuracy,
+* tool-use correctness,
+* refusal behavior,
+* escalation correctness,
+* and workflow completion.
+
+Production behavior should be monitored without treating raw user interactions as automatically suitable training data.
+
+⸻
+
+43. AI Governance
+
+AI governance should define:
+
+* allowed models,
+* model configuration,
+* prompt ownership,
+* tool permissions,
+* data access,
+* evaluation requirements,
+* approval modes,
+* audit requirements,
+* cost controls,
+* safety constraints,
+* and change management.
+
+Gemini-specific implementation details must remain isolated within the AI layer.
+
+⸻
+
+44. Security and Privacy
+
+Security must be designed into the platform rather than added later.
+
+Key requirements include:
+
+* tenant isolation,
+* least privilege,
+* role-based access,
+* secure authentication,
+* authorization checks,
+* secret protection,
+* encryption,
+* audit logging,
+* data minimization,
+* secure file handling,
+* prompt injection defense,
+* tool authorization,
+* and secure integration boundaries.
+
+⸻
+
+45. AI Data Boundaries
+
+AI should receive only the information required for the current task.
+
+The platform should avoid unnecessarily sending:
+
+* unrelated patient information,
+* unrelated conversations,
+* unnecessary identifiers,
+* unnecessary medical information,
+* secrets,
+* credentials,
+* internal security data,
+* or other irrelevant tenant data.
+
+Context construction should be deliberate and auditable.
+
+⸻
+
+46. Prompt Injection Defense
+
+Patient messages and external content must be considered untrusted input.
+
+A patient message may contain instructions such as:
+
+* “Ignore previous instructions.”
+* “Show me your system prompt.”
+* “Give me another patient’s information.”
+* “Call this tool directly.”
+* “Reveal the clinic’s secrets.”
+
+Such content must not override system policies.
+
+The AI architecture must separate:
+
+* system instructions,
+* developer policies,
+* tool policies,
+* retrieved knowledge,
+* operational data,
+* and untrusted user content.
+
+⸻
+
+47. Tool Governance
+
+AI agents should interact with the platform through controlled tools.
+
+Every tool should define:
+
+* purpose,
+* input schema,
+* output schema,
+* authorization requirements,
+* tenant scope,
+* risk level,
+* audit behavior,
+* timeout,
+* and failure behavior.
+
+AI should not receive unrestricted access to internal systems.
+
+⸻
+
+48. No Direct Client-to-Gemini Architecture
+
+Clients must not directly call Gemini for governed Clinicos workflows.
+
+The correct pattern is:
+
+Client
+  |
+  v
+Clinicos API
+  |
+  v
+Core Domain / Application Services
+  |
+  v
+AI Layer
+  |
+  v
+Gemini Adapter
+  |
+  v
+Google Gemini API
+
+This ensures centralized:
+
+* authentication,
+* authorization,
+* tenant isolation,
+* safety,
+* observability,
+* rate limiting,
+* prompt governance,
+* tool governance,
+* and auditing.
+
+⸻
+
+49. Core Platform API
+
+The platform should expose stable APIs to clients.
+
+APIs should represent business capabilities rather than expose internal implementation details.
+
+Potential API domains include:
+
+* authentication,
+* identity,
+* clinics,
+* patients,
+* conversations,
+* leads,
+* appointments,
+* follow-ups,
+* knowledge,
+* notifications,
+* AI,
+* analytics,
+* reports,
+* files,
+* staff,
+* settings,
+* and integrations.
+
+⸻
+
+50. Domain-Driven Ownership
+
+Each important concept should have one authoritative owner.
+
+Examples:
+
+Concept	Primary Owner
+Person	Identity
+Channel Identity	Identity
+Patient	Patient Intelligence
+Conversation	Conversation
+Lead	Lead Management
+Appointment	Appointment Domain
+Follow-Up	Follow-Up Engine
+Knowledge	Knowledge Domain
+Safety State	Medical Safety
+Communication Delivery	Communication Layer
+AI Execution	AI Layer
+Clinic Configuration	Clinic Management
+Analytics	Analytics
+Audit	Governance / Audit Layer
+
+Other domains may reference these objects but should not silently redefine their authoritative state.
+
+⸻
+
+51. Source-of-Truth Principle
+
+Every important business fact must have a clearly defined source of truth.
+
+Examples:
+
+Appointment availability -> Appointment/Scheduling system
+Patient identity -> Identity domain
+Consent -> Consent/Privacy system
+Safety state -> Medical Safety domain
+Clinic hours -> Clinic Management
+Current price -> Authoritative pricing/configuration
+Lead state -> Lead Management
+Communication delivery -> Communication Layer
+AI execution metadata -> AI Layer
+
+AI-generated text is not a substitute for authoritative state.
+
+⸻
+
+52. Product Experience Philosophy
+
+Clinicos should feel:
+
+* intelligent,
+* fast,
+* reliable,
+* professional,
+* context-aware,
+* transparent,
+* safe,
+* and operationally useful.
+
+AI should reduce friction rather than create additional complexity.
+
+The system should avoid forcing users to understand technical AI concepts.
+
+Users should experience outcomes, not infrastructure.
+
+⸻
+
+53. Patient Experience
+
+The patient should experience Clinicos as a coherent clinic assistant.
+
+The system should:
+
+* remember relevant context,
+* avoid asking unnecessary repeated questions,
+* communicate clearly,
+* respect preferences,
+* provide accurate information,
+* make appropriate next steps obvious,
+* provide human escalation,
+* and avoid manipulative communication.
+
+Patients should not need to understand which internal agent or model handled a request.
+
+⸻
+
+54. Staff Experience
+
+Staff should experience Clinicos as an operational copilot.
+
+The system should help staff understand:
+
+* who needs attention,
+* why attention is required,
+* what happened previously,
+* what action is recommended,
+* what information supports that recommendation,
+* and what action has already been taken.
+
+The goal is not simply to automate staff out of the workflow.
+
+The goal is to make staff more effective while preserving appropriate human control.
+
+⸻
+
+55. Doctor Experience
+
+Doctors should receive relevant information without unnecessary operational noise.
+
+The system should prioritize:
+
+* patient context,
+* relevant clinical information,
+* safety alerts,
+* structured summaries,
+* and actionable information.
+
+AI output must clearly distinguish:
+
+* patient-provided information,
+* authoritative records,
+* retrieved knowledge,
+* AI interpretation,
+* and recommendations.
+
+⸻
+
+56. Management Experience
+
+Owners and managers should receive a high-level operational view.
+
+They should be able to understand:
+
+* what is happening,
+* where leads are being lost,
+* how workflows perform,
+* how staff workload is distributed,
+* how communication performs,
+* and where operational attention may be required.
+
+Analytics should support decisions without hiding uncertainty.
+
+⸻
+
+57. Ethical Commercial Intelligence
+
+Clinicos may support commercial workflows such as:
+
+* lead qualification,
+* reactivation,
+* follow-up,
+* campaign management,
+* and conversion optimization.
+
+However, commercial optimization must remain subordinate to:
+
+* safety,
+* privacy,
+* consent,
+* authorization,
+* and ethical communication.
+
+Clinicos must not use:
+
+* fake urgency,
+* fabricated scarcity,
+* fear,
+* guilt,
+* fabricated social proof,
+* deceptive claims,
+* or misleading medical statements.
+
+⸻
+
+58. Marketing Communication
+
+Marketing communication must be clearly distinguishable from:
+
+* transactional communication,
+* operational communication,
+* safety communication,
+* and authentication communication.
+
+Marketing must not be disguised as another communication type to bypass policy or consent requirements.
+
+⸻
+
+59. Human Escalation
+
+The platform must provide reliable human escalation.
+
+Escalation may occur because:
+
+* the patient requests a human,
+* AI confidence is insufficient,
+* the question is medically sensitive,
+* a safety event is detected,
+* the workflow requires staff approval,
+* a system dependency fails,
+* or clinic policy requires human intervention.
+
+Escalation must be observable and auditable.
+
+⸻
+
+60. Observability
+
+Every important workflow should be observable.
+
+Observability should include:
+
+* structured logs,
+* metrics,
+* traces,
+* correlation IDs,
+* request IDs,
+* workflow IDs,
+* AI execution IDs,
+* communication IDs,
+* and audit records.
+
+Operational failures must be diagnosable.
+
+⸻
+
+61. Auditability
+
+Clinicos should maintain an auditable record of important actions.
+
+Audit events may include:
+
+* login,
+* authorization changes,
+* patient access,
+* staff actions,
+* AI actions,
+* tool calls,
+* message generation,
+* message approval,
+* message sending,
+* appointment changes,
+* consent changes,
+* safety escalations,
+* configuration changes,
+* and administrative actions.
+
+Audit records should be tamper-resistant and appropriately retained.
+
+⸻
+
+62. Configuration
+
+Clinic-specific behavior should be configuration-driven where practical.
+
+Examples include:
+
+* clinic identity,
+* language settings,
+* communication preferences,
+* business hours,
+* notification rules,
+* follow-up policies,
+* AI approval modes,
+* templates,
+* knowledge sources,
+* staff permissions,
+* and operational policies.
+
+Configuration changes should be validated and auditable.
+
+⸻
+
+63. Versioning
+
+Important workflows and AI behavior must be versionable.
+
+This includes:
+
+* prompts,
+* agent definitions,
+* workflows,
+* follow-up policies,
+* templates,
+* knowledge,
+* configuration,
+* evaluation datasets,
+* and AI model configuration.
+
+A workflow scheduled under one policy version should not silently mutate into a fundamentally different workflow without controlled migration or revalidation.
+
+⸻
+
+64. Deployment Philosophy
+
+The deployment architecture must support:
+
+* secure secrets,
+* reproducible builds,
+* environment separation,
+* database migrations,
+* observability,
+* backups,
+* rollback,
+* health checks,
+* and controlled configuration.
+
+The deployment platform is an implementation detail.
+
+The product architecture must not become dependent on a specific hosting provider.
+
+⸻
+
+65. Infrastructure Independence
+
+Clinicos should be deployable on suitable infrastructure without redesigning its business domains.
+
+Infrastructure may evolve.
+
+The platform should preserve:
+
+* API contracts,
+* domain boundaries,
+* persistence boundaries,
+* event contracts,
+* AI abstraction,
+* communication abstraction,
+* and security principles.
+
+⸻
+
+66. Future Integrations
+
+The platform should be capable of integrating with external systems such as:
+
+* social platforms,
+* messaging providers,
+* payment systems,
+* appointment systems,
+* CRMs,
+* analytics platforms,
+* medical systems,
+* file storage,
+* and other clinic infrastructure.
+
+Integrations must be isolated behind explicit interfaces.
+
+External systems must not become accidental sources of uncontrolled business logic.
+
+⸻
+
+67. Future Social Channel Expansion
+
+Future versions may integrate channels such as Instagram and WhatsApp.
+
+These integrations should enter the platform through the Communication Layer and Identity model.
+
+They must not require redesigning:
+
+* patient intelligence,
+* lead management,
+* follow-up,
+* AI agents,
+* safety,
+* analytics,
+* or core clinic domains.
+
+⸻
+
+68. Extensibility Without Premature Complexity
+
+Clinicos must be designed for future expansion without overengineering Phase 1.
+
+The system should establish the correct boundaries early.
+
+However, it does not need to implement every future feature immediately.
+
+The principle is:
+
+Build stable boundaries early; implement complexity when the product actually needs it.
+
+This means:
+
+* abstract where abstraction protects a real boundary,
+* avoid speculative microservices,
+* avoid speculative providers,
+* avoid speculative integrations,
+* avoid premature distributed complexity,
+* and avoid implementing unused infrastructure solely for theoretical scalability.
+
+⸻
+
+69. Phase 1 Priorities
+
+Phase 1 should prioritize the complete operational loop.
+
+The system should be able to:
+
+Receive
+  ->
+Understand
+  ->
+Identify
+  ->
+Retrieve Context
+  ->
+Apply Policy
+  ->
+Use Knowledge / Tools
+  ->
+Generate or Select Response
+  ->
+Validate
+  ->
+Respond
+  ->
+Record
+  ->
+Measure
+
+This loop should work reliably before large client expansion.
+
+⸻
+
+70. Phase 1 Client Boundary
+
+The initial Telegram implementation should contain:
+
+* Telegram transport,
+* Telegram-specific event handling,
+* Telegram message formatting,
+* Telegram identity mapping,
+* Telegram media handling,
+* and Telegram-specific limitations.
+
+It should not contain the core business rules.
+
+⸻
+
+71. Phase 2 Product Expansion
+
+The Telegram Mini App should expand structured interaction.
+
+Priority areas may include:
+
+* dashboards,
+* patient information,
+* appointment interfaces,
+* structured forms,
+* lead management,
+* staff workflows,
+* analytics,
+* configuration,
+* and interactive AI experiences.
+
+All such features should use the same backend platform.
+
+⸻
+
+72. Phase 3 Product Expansion
+
+Web, Android, and iOS should provide platform-level experiences.
+
+The product should eventually support:
+
+* rich patient portals,
+* staff applications,
+* doctor workflows,
+* owner dashboards,
+* advanced analytics,
+* structured appointment experiences,
+* document and media management,
+* and cross-channel communication.
+
+The core architecture should remain unchanged at the domain level.
+
+⸻
+
+73. Product Boundaries
+
+Clinicos is responsible for orchestrating clinic operations and AI-assisted workflows.
+
+It is not intended to replace every external system.
+
+Specialized external systems may remain authoritative for areas such as:
+
+* payment processing,
+* external scheduling,
+* identity providers,
+* messaging transport,
+* or specialized medical systems.
+
+Clinicos should integrate with them rather than unnecessarily rebuilding everything.
+
+⸻
+
+74. Non-Goals
+
+The following are not primary goals of the target architecture:
+
+* building a generic consumer chatbot,
+* becoming a general-purpose AI provider,
+* implementing multiple AI providers at runtime,
+* maintaining multi-provider AI fallback,
+* putting business logic inside clients,
+* replacing professional medical judgment,
+* replacing all clinic staff,
+* creating a Telegram-only architecture,
+* using RAG as a substitute for live operational truth,
+* or building speculative infrastructure before product demand requires it.
+
+⸻
+
+75. Historical Implementation Versus Target Architecture
+
+Clinicos may contain historical implementation artifacts that do not match this vision.
+
+These may include:
+
+* old provider integrations,
+* legacy routing systems,
+* outdated environment variables,
+* previous architecture assumptions,
+* temporary abstractions,
+* experimental features,
+* and old documentation.
+
+These artifacts must be treated as current implementation history, not as the target product definition.
+
+When conflict exists:
+
+Current Target Architecture
+        >
+Architecture Change Set
+        >
+Master Product Vision
+        >
+Domain Specifications
+        >
+Current Implementation
+        >
+Historical Handoff / Legacy Decisions
+
+The exact governance hierarchy should be interpreted according to the current platform governance specification.
+
+⸻
+
+76. Target Architecture Versus Current Implementation
+
+Every major technical discussion should distinguish three states:
+
+Target Architecture
+
+What Clinicos is intended to become.
+
+Current Implementation
+
+What the repository actually does today.
+
+Future Extension
+
+What may be added later.
+
+These three states must never be silently mixed.
+
+A repository audit should therefore answer:
+
+1. What exists?
+2. What is missing?
+3. What conflicts with the target?
+4. What can be reused?
+5. What must be refactored?
+6. What must be removed?
+7. What must be implemented?
+8. What can wait?
+
+⸻
+
+77. Architectural Change: AI Provider
+
+The current target AI architecture is:
+
+Clinicos Core
+      |
+      v
+AI Governance Layer
+      |
+      v
+AI Abstraction
+      |
+      v
+Gemini Adapter
+      |
+      v
+Google Gemini
+
+The following architecture is explicitly not part of the target:
+
+Provider A
+Provider B
+Provider C
+Provider D
+      |
+      v
+Dynamic Provider Router
+
+No runtime provider competition or scoring is required.
+
+⸻
+
+78. Architectural Change: Client Model
+
+The target client model is:
+
+                  Clinicos Core Platform
+                           |
+        +------------------+------------------+
+        |                  |                  |
+     Telegram            Mini App           Web
+        |                                     |
+        +------------------+------------------+
+                           |
+                     Android / iOS
+
+All clients are consumers of the platform.
+
+The platform is not a subsystem of any client.
+
+⸻
+
+79. Architectural Change: Communication
+
+Communication is modeled as a platform capability.
+
+Business Intent
+       |
+       v
+Communication Policy
+       |
+       v
+Communication Orchestrator
+       |
+       +---- Telegram
+       +---- Instagram
+       +---- WhatsApp
+       +---- SMS
+       +---- Email
+       +---- Web
+       +---- Push
+       +---- Voice
+
+Only the currently supported channels should be implemented.
+
+Future channels should be added through adapters.
+
+⸻
+
+80. AI Agent Vision
+
+Clinicos should eventually contain specialized AI agents rather than one monolithic assistant.
+
+Potential agents include:
+
+* Conversation Agent,
+* Lead Agent,
+* Follow-Up Agent,
+* Appointment Agent,
+* Knowledge Agent,
+* Staff Copilot,
+* Patient Intelligence Agent,
+* Reporting Agent,
+* Safety Support Agent,
+* Facial Analysis Agent,
+* and Orchestrator Agent.
+
+These agents must operate within shared platform governance.
+
+⸻
+
+81. Agent Orchestration
+
+A central orchestration layer may determine:
+
+* which agent should handle a task,
+* what context is required,
+* which tools are available,
+* whether the task requires human approval,
+* what safety policies apply,
+* and how the result should be returned.
+
+Agent orchestration must not bypass domain ownership.
+
+⸻
+
+82. Specialized Agent Principle
+
+An agent should have:
+
+* a defined responsibility,
+* bounded tools,
+* defined inputs,
+* defined outputs,
+* safety constraints,
+* authorization boundaries,
+* observability,
+* and evaluation criteria.
+
+Agents should not become uncontrolled general-purpose administrators.
+
+⸻
+
+83. The AI Execution Contract
+
+AI execution should conceptually follow:
+
+REQUEST
+   |
+   v
+IDENTIFY ACTOR
+   |
+   v
+RESOLVE TENANT
+   |
+   v
+CLASSIFY INTENT
+   |
+   v
+CHECK AUTHORIZATION
+   |
+   v
+CHECK SAFETY
+   |
+   v
+BUILD MINIMAL CONTEXT
+   |
+   v
+SELECT AGENT
+   |
+   v
+SELECT GEMINI MODEL
+   |
+   v
+RETRIEVE KNOWLEDGE / TOOLS
+   |
+   v
+EXECUTE
+   |
+   v
+VALIDATE OUTPUT
+   |
+   v
+APPLY POLICY
+   |
+   v
+RESPOND / ACT / ESCALATE
+   |
+   v
+AUDIT
+   |
+   v
+MEASURE
+
+⸻
+
+84. The Operational Truth Contract
+
+AI must follow this rule:
+
+If the system has an authoritative source for a fact, the AI must obtain that fact from the authoritative source rather than inventing or relying on model memory.
+
+Examples:
+
+Bad:
+
+"I believe you have an appointment tomorrow at 5 PM."
+
+Good:
+
+The Appointment Domain reports an appointment tomorrow at 5 PM.
+
+The AI may communicate the authoritative result but must not manufacture it.
+
+⸻
+
+85. The Safety Contract
+
+No commercial workflow may override safety.
+
+For example:
+
+Patient Safety Escalation
+        >
+Marketing Follow-Up
+
+If a serious safety event is detected, relevant commercial follow-ups may need to be paused or escalated.
+
+⸻
+
+86. The Consent Contract
+
+Scheduled future communication is not permanent authorization.
+
+Before communication:
+
+Scheduled
+   |
+   v
+Revalidate Consent
+   |
+   v
+Revalidate Safety
+   |
+   v
+Revalidate Ownership
+   |
+   v
+Revalidate Timing
+   |
+   v
+Send
+
+This protects against stale permissions.
+
+⸻
+
+87. The Human Ownership Contract
+
+If a staff member has taken ownership of a patient interaction:
+
+AI Automation
+      |
+      v
+Human Takeover
+      |
+      v
+AI Must Respect Ownership
+
+AI must not continue sending automated messages that conflict with active human handling.
+
+⸻
+
+88. The Tenant Isolation Contract
+
+Every operation must be evaluated within tenant context.
+
+Conceptually:
+
+Request
+  |
+  v
+Authenticated Actor
+  |
+  v
+Tenant Context
+  |
+  v
+Authorization
+  |
+  v
+Tenant-Scoped Data
+  |
+  v
+Action
+
+Cross-tenant access must be impossible through normal application workflows.
+
+⸻
+
+89. The Observability Contract
+
+Important operations must be traceable.
+
+A request should be connectable through:
+
+Request ID
+   |
+   +-- Conversation ID
+   |
+   +-- Patient ID
+   |
+   +-- Workflow ID
+   |
+   +-- Agent Execution ID
+   |
+   +-- Gemini Request ID
+   |
+   +-- Tool Calls
+   |
+   +-- Communication ID
+   |
+   +-- Audit Event
+
+This enables debugging and accountability.
+
+⸻
+
+90. Product Quality Principles
+
+Clinicos should optimize for:
+
+* correctness,
+* safety,
+* reliability,
+* maintainability,
+* usability,
+* observability,
+* scalability,
+* and controlled intelligence.
+
+It should not optimize for AI novelty at the expense of operational reliability.
+
+⸻
+
+91. Quality Gates
+
+Major features should not be considered complete merely because they function in a happy-path demonstration.
+
+A feature should be evaluated for:
+
+* correctness,
+* authorization,
+* tenant isolation,
+* failure behavior,
+* duplicate prevention,
+* observability,
+* security,
+* AI behavior where applicable,
+* human takeover,
+* policy compliance,
+* and regression risk.
+
+⸻
+
+92. Testing Philosophy
+
+Testing should exist at multiple levels.
+
+Unit Tests
+
+For deterministic domain logic.
+
+Integration Tests
+
+For database, queue, AI adapter, communication adapter, and external integration behavior.
+
+Contract Tests
+
+For API, event, tool, and adapter contracts.
+
+End-to-End Tests
+
+For complete workflows.
+
+AI Evaluation
+
+For model behavior and agent performance.
+
+Security Tests
+
+For authorization, isolation, injection, and secret handling.
+
+Reliability Tests
+
+For retries, failures, timeouts, and recovery.
+
+⸻
+
+93. Data Philosophy
+
+Clinicos should collect and retain only information necessary for legitimate product and operational purposes.
+
+Sensitive information requires stronger controls.
+
+Data should have:
+
+* ownership,
+* purpose,
+* access policy,
+* retention policy,
+* provenance,
+* and lifecycle rules.
+
+⸻
+
+94. File and Media Philosophy
+
+Clinicos may handle:
+
+* patient photos,
+* facial analysis images,
+* documents,
+* reports,
+* attachments,
+* and communication media.
+
+Files must be:
+
+* tenant-scoped,
+* access-controlled,
+* securely stored,
+* auditable,
+* and governed by retention policies.
+
+Sensitive media must never be exposed through predictable public URLs without appropriate protection.
+
+⸻
+
+95. Performance Philosophy
+
+Performance must be designed around real user workflows.
+
+Important metrics include:
+
+* message response latency,
+* API latency,
+* database latency,
+* queue latency,
+* AI latency,
+* communication delivery latency,
+* and dashboard load time.
+
+AI latency should not be allowed to block every workflow unnecessarily.
+
+Asynchronous processing should be used where appropriate.
+
+⸻
+
+96. Cost Governance
+
+Gemini usage must be observable and controlled.
+
+The platform should track:
+
+* model usage,
+* token usage where available,
+* request volume,
+* latency,
+* error rates,
+* cost estimates,
+* workflow-level AI usage,
+* and tenant-level AI usage where appropriate.
+
+Cost controls may include:
+
+* model selection,
+* context minimization,
+* caching,
+* batching,
+* asynchronous execution,
+* rate limits,
+* and workflow-specific limits.
+
+⸻
+
+97. AI Context Efficiency
+
+AI context should be intentionally constructed.
+
+The system should avoid sending entire databases or entire conversation histories when only a subset is required.
+
+Context should prioritize:
+
+1. Current task
+2. Relevant user context
+3. Authoritative operational data
+4. Relevant knowledge
+5. Necessary conversation history
+6. Applicable policies
+
+This improves:
+
+* cost,
+* latency,
+* reliability,
+* privacy,
+* and reasoning quality.
+
+⸻
+
+98. Product Intelligence Loop
+
+Clinicos should continuously learn from operational signals without compromising safety or privacy.
+
+The conceptual loop is:
+
+Interaction
+    |
+    v
+Structured Event
+    |
+    v
+Operational State
+    |
+    v
+Outcome
+    |
+    v
+Analytics
+    |
+    v
+Evaluation
+    |
+    v
+Improvement
+
+The improvement process must be governed.
+
+Production behavior must not automatically become training data.
+
+⸻
+
+99. System Learning Versus Model Training
+
+Clinicos may improve through:
+
+* workflow optimization,
+* policy updates,
+* prompt improvements,
+* knowledge updates,
+* tool improvements,
+* UI improvements,
+* evaluation feedback,
+* and configuration changes.
+
+This does not require continuously retraining an AI model.
+
+The platform should distinguish:
+
+* product learning,
+* operational learning,
+* evaluation,
+* and actual model training.
+
+⸻
+
+100. Governance
+
+The platform requires explicit governance for:
+
+* architecture,
+* AI,
+* security,
+* privacy,
+* medical safety,
+* data,
+* deployment,
+* integrations,
+* client development,
+* and documentation.
+
+Architecture decisions must be recorded.
+
+Major changes should have:
+
+* rationale,
+* impact,
+* affected documents,
+* migration strategy,
+* testing requirements,
+* and rollback considerations.
+
+⸻
+
+101. Documentation Hierarchy
+
+The master documentation set should be interpreted as a coordinated architecture.
+
+High-level product vision defines:
+
+What Clinicos is.
+
+Product requirements define:
+
+What Clinicos must do.
+
+Target architecture defines:
+
+How the platform is structurally organized.
+
+Domain specifications define:
+
+How individual systems should behave.
+
+Implementation defines:
+
+What exists today.
+
+Testing and governance define:
+
+How correctness and change are controlled.
+
+No low-level implementation detail should silently redefine the product vision.
+
+⸻
+
+102. Required Documentation Alignment
+
+The following documents must remain aligned with this Master Vision:
+
+* CLINICOS_PRODUCT_REQUIREMENTS.md
+* CLINICOS_TARGET_ARCHITECTURE.md
+* CLINICOS_AI_ENGINEERING_SPEC.md
+* CLINICOS_DATA_AND_DATABASE_SPEC.md
+* CLINICOS_SECURITY_AND_PRIVACY_SPEC.md
+* CLINICOS_API_AND_INTEGRATION_SPEC.md
+* CLINICOS_TESTING_AND_QUALITY_SPEC.md
+* CLINICOS_AI_AGENT_ARCHITECTURE_SPEC.md
+* CLINICOS_KNOWLEDGE_AND_RAG_SPEC.md
+* CLINICOS_AUTOMATION_AND_EVENT_ENGINE_SPEC.md
+* CLINICOS_FACIAL_ANALYSIS_SPEC.md
+* CLINICOS_PRODUCT_UX_SPEC.md
+* CLINICOS_CLINIC_OPERATING_MODEL.md
+* CLINICOS_AI_EVALUATION_AND_MODEL_GOVERNANCE_SPEC.md
+* CLINICOS_MEDICAL_SAFETY_SPEC.md
+* CLINICOS_CONVERSATIONAL_AI_SPEC.md
+* CLINICOS_FOLLOW_UP_ENGINE_SPEC.md
+* CLINICOS_NOTIFICATION_AND_COMMUNICATION_SPEC.md
+* CLINICOS_PATIENT_INTELLIGENCE_SPEC.md
+* CLINICOS_CLINIC_MANAGEMENT_SPEC.md
+* CLINICOS_ANALYTICS_AND_REPORTING_SPEC.md
+* CLINICOS_OBSERVABILITY_AND_RELIABILITY_SPEC.md
+* CLINICOS_DISASTER_RECOVERY_AND_BUSINESS_CONTINUITY_SPEC.md
+* CLINICOS_PLATFORM_GOVERNANCE_SPEC.md
+* CLINICOS_DEPLOYMENT_AND_INFRASTRUCTURE_SPEC.md
+
+The architecture change set is the authoritative record for major architectural changes introduced after earlier specifications.
+
+⸻
+
+103. Development Principle
+
+When implementing a new feature, the team should ask:
+
+1. Which domain owns this feature?
+2. What is the source of truth?
+3. Is AI actually required?
+4. If AI is required, what is the minimum context?
+5. Which Gemini model is appropriate?
+6. What tools are required?
+7. What permissions are required?
+8. What safety constraints apply?
+9. What happens if Gemini fails?
+10. What happens if the external system fails?
+11. What happens if the user retries?
+12. How is duplication prevented?
+13. How is the action audited?
+14. How is it observed?
+15. How will it work from future clients?
+16. Does it preserve tenant isolation?
+17. Does it preserve human control?
+18. Does it introduce client-specific business logic?
+19. Does it conflict with the target architecture?
+20. What documentation must be updated?
+
+⸻
+
+104. Feature Acceptance Principle
+
+A feature is not architecturally complete merely because:
+
+* the UI works,
+* the API returns a successful response,
+* or the AI produces a convincing answer.
+
+A feature is complete when its:
+
+* domain ownership,
+* authorization,
+* data flow,
+* failure handling,
+* safety,
+* observability,
+* testing,
+* and operational behavior
+
+are defined and validated.
+
+⸻
+
+105. Future-Proofing Principle
+
+Clinicos should be capable of evolving from:
+
+Telegram Bot
+
+to:
+
+Telegram Bot
++
+Telegram Mini App
++
+Web
++
+Android
++
+iOS
++
+Future Communication Channels
+
+without redesigning the core domain model.
+
+Similarly, Clinicos should evolve from:
+
+Gemini
+
+to a future alternative provider only through controlled replacement of the AI adapter if such a change is ever required.
+
+The current product does not require multi-provider runtime support.
+
+⸻
+
+106. The Three-Layer Product Model
+
+Clinicos can be understood through three major layers.
+
+Layer 1: Experience
+
+Telegram
+Mini App
+Web
+Android
+iOS
+Future Channels
+
+Layer 2: Core Platform
+
+Identity
+Patients
+Conversations
+Leads
+Appointments
+Follow-Ups
+Knowledge
+Safety
+Notifications
+Analytics
+Clinic Management
+Automation
+
+Layer 3: Intelligence and Integration
+
+AI Layer
+Gemini
+Agents
+Tools
+External Systems
+Communication Providers
+Analytics Systems
+
+This separation is fundamental.
+
+⸻
+
+107. The Ultimate Product Loop
+
+The long-term Clinicos operating loop is:
+
+PATIENT / STAFF INTERACTION
+            |
+            v
+         IDENTITY
+            |
+            v
+       UNDERSTANDING
+            |
+            v
+      PATIENT CONTEXT
+            |
+            v
+      DOMAIN DECISION
+            |
+            v
+      POLICY / SAFETY
+            |
+            v
+     AI / TOOL ASSISTANCE
+            |
+            v
+       VALIDATED ACTION
+            |
+            v
+     COMMUNICATION / UI
+            |
+            v
+          OUTCOME
+            |
+            v
+        ANALYTICS
+            |
+            v
+        IMPROVEMENT
+
+This loop represents the central operating model of Clinicos.
+
+⸻
+
+108. The Core Architectural Formula
+
+The platform can be summarized as:
+
+CLIENT
+   ->
+API
+   ->
+CORE PLATFORM
+   ->
+DOMAIN
+   ->
+POLICY
+   ->
+AI / TOOLS
+   ->
+VALIDATION
+   ->
+ACTION
+   ->
+COMMUNICATION
+   ->
+EVENT
+   ->
+ANALYTICS
+
+AI is embedded in the workflow but does not own the workflow.
+
+⸻
+
+109. The Core AI Formula
+
+The AI architecture can be summarized as:
+
+Intent
+  ->
+Context
+  ->
+Policy
+  ->
+Agent
+  ->
+Gemini
+  ->
+Tool / Knowledge
+  ->
+Validation
+  ->
+Action
+
+Not:
+
+User
+  ->
+Gemini
+  ->
+Anything
+
+⸻
+
+110. The Core Communication Formula
+
+Communication can be summarized as:
+
+Business Intent
+  ->
+Authorization
+  ->
+Consent
+  ->
+Safety
+  ->
+Content
+  ->
+Channel
+  ->
+Delivery
+  ->
+Reconciliation
+  ->
+Audit
+
+⸻
+
+111. The Core Product Principle
+
+The product should always preserve this distinction:
+
+Business domains decide WHY.
+
+Policy decides WHETHER.
+
+AI and content systems help determine WHAT.
+
+Communication decides HOW.
+
+Channel adapters determine WHERE.
+
+External providers report WHAT HAPPENED.
+
+Audit records THE FACT.
+
+⸻
+
+112. Non-Negotiable Architectural Rules
+
+The following rules are mandatory for the target architecture.
+
+1. Gemini is the only active AI provider.
+2. FreeLLMAPI is not part of the target AI architecture.
+3. Multi-provider runtime routing is not part of the target architecture.
+4. AI provider fallback is not part of the target architecture.
+5. The internal AI abstraction must remain.
+6. Gemini-specific code must remain isolated behind the AI layer.
+7. Clients must not directly call Gemini for governed workflows.
+8. Telegram is the Phase 1 client, not the product identity.
+9. Telegram Mini App is part of Phase 2.
+10. Web, Android, and iOS are part of Phase 3.
+11. Core business logic must remain client-independent.
+12. Communication must remain channel-agnostic.
+13. Tenant isolation must be enforced centrally.
+14. Safety must be enforced centrally.
+15. Consent must be enforced centrally.
+16. Authorization must be enforced centrally.
+17. Dynamic operational truth must come from authoritative systems.
+18. AI must not invent operational facts.
+19. AI must not bypass human ownership.
+20. Scheduled follow-ups must be revalidated before execution.
+21. Marketing must not be disguised as transactional communication.
+22. Medical safety must override commercial optimization.
+23. External integrations must be isolated behind defined boundaries.
+24. Important actions must be observable and auditable.
+25. Critical workflows must be idempotent where appropriate.
+26. Client expansion must not require domain redesign.
+27. Historical implementation decisions must not override the target architecture.
+28. Future extensibility must not justify unnecessary Phase 1 complexity.
+
+⸻
+
+113. What Clinicos Should Become
+
+Clinicos should ultimately function as the clinic’s intelligent operational nervous system.
+
+It should connect:
+
+* patients,
+* staff,
+* doctors,
+* owners,
+* conversations,
+* appointments,
+* leads,
+* follow-ups,
+* knowledge,
+* AI,
+* communication channels,
+* operational systems,
+* and analytics.
+
+Instead of forcing clinics to operate a collection of disconnected tools, Clinicos should provide one coherent operational platform.
+
+⸻
+
+114. Long-Term Vision
+
+The long-term vision is a clinic in which:
+
+A patient starts a conversation.
+
+Clinicos identifies the patient.
+
+The system understands the intent.
+
+Relevant context is retrieved.
+
+The appropriate domain takes ownership.
+
+Policies and safety constraints are evaluated.
+
+Gemini assists when AI is useful.
+
+Authoritative tools provide live facts.
+
+The response is validated.
+
+The patient receives an appropriate answer.
+
+If action is required, the correct workflow is created.
+
+If follow-up is needed, it is scheduled.
+
+If a human is required, staff are alerted.
+
+The outcome is recorded.
+
+Analytics measure what happened.
+
+The system learns operationally from the result.
+
+And the entire process remains:
+
+* safe,
+* explainable,
+* auditable,
+* tenant-isolated,
+* reliable,
+* and extensible.
+
+⸻
+
+115. Final Product Statement
+
+Clinicos is an AI-native clinic operating platform.
+
+Its first interface is Telegram.
+
+Its future interfaces include Telegram Mini App, Web, Android, and iOS.
+
+Its current AI provider is Google Gemini.
+
+Its AI is governed through an internal AI layer.
+
+Its business logic lives in the Core Platform.
+
+Its communication architecture is channel-agnostic.
+
+Its operational truth comes from authoritative systems.
+
+Its workflows are policy-driven.
+
+Its medical behavior is safety-first.
+
+Its data is tenant-isolated.
+
+Its actions are observable and auditable.
+
+Its architecture is designed for future expansion without unnecessary present complexity.
+
+The ultimate objective is not to build a better chatbot.
+
+The objective is to build a reliable, intelligent, governed operating system for clinics.
+
+⸻
+
+116. Final Architecture Contract
+
+The canonical target architecture is:
+
+                         CLINICOS CLIENTS
+                              |
+       +----------------------+----------------------+
+       |                      |                      |
+ Telegram Bot          Telegram Mini App       Web / Mobile
+       |                      |                 Android / iOS
+       +----------------------+----------------------+
+                              |
+                              v
+                     CLINICOS CORE API
+                              |
+                              v
+                    CLINICOS CORE PLATFORM
+                              |
+       +----------+-----------+-----------+-----------+
+       |          |           |           |           |
+   Identity   Patients     Leads     Appointments  Conversation
+       |          |           |           |           |
+       +----------+-----------+-----------+-----------+
+                              |
+                 +------------+------------+
+                 |                         |
+                 v                         v
+          Follow-Up Engine          Automation/Event Engine
+                 |                         |
+                 +------------+------------+
+                              |
+                              v
+                     POLICY / SAFETY LAYER
+                              |
+                 +------------+------------+
+                 |                         |
+                 v                         v
+             AI LAYER               KNOWLEDGE / TOOLS
+                 |
+                 v
+          GEMINI ADAPTER
+                 |
+                 v
+          GOOGLE GEMINI API
+                              |
+                              v
+                    COMMUNICATION LAYER
+                              |
+          +---------+---------+---------+---------+
+          |         |         |         |         |
+       Telegram  Instagram WhatsApp   SMS      Email
+          |
+          v
+       Providers
+                              |
+                              v
+                     ANALYTICS / REPORTING
+                              |
+                              v
+                    OBSERVABILITY / AUDIT
+
+⸻
+
+117. Final Philosophy
+
+Clinicos must be built according to the following philosophy:
+
+Core Platform First, Clients Second.
+
+Governed AI, Not Uncontrolled AI.
+
+Gemini as the Current AI Provider, Without Multi-Provider Runtime Complexity.
+
+Telegram as the First Interface, Not the Product Identity.
+
+Business Logic in the Platform, Not in Clients.
+
+Authoritative Systems for Operational Truth.
+
+Safety and Consent Before Automation.
+
+Human Control When Required.
+
+Channel-Agnostic Communication.
+
+Tenant Isolation by Design.
+
+Observable and Auditable Operations.
+
+Stable Architectural Boundaries Before Premature Complexity.
+
+The target state of Clinicos is therefore not:
+
+Telegram Bot + AI
+
+It is:
+
+                 CLINICOS
+                    |
+        +-----------+-----------+
+        |                       |
+   CORE PLATFORM            AI LAYER
+        |                       |
+        |                     GEMINI
+        |
+   +----+----+----+----+----+
+   |    |    |    |    |    |
+Patient Lead Follow-Up Appointments
+   |    |    |    |    |
+Conversation Knowledge Safety Analytics
+   |
+Communication
+   |
+Clients
+   |
+Telegram -> Mini App -> Web -> Android -> iOS
+
+Clinicos is the operating platform.
+
+AI is its intelligence layer.
+
+Gemini is its current AI engine.
+
+Clients are its interfaces.
+
+Communication channels are adapters.
+
+The Core Platform is the foundation.
+
+That distinction must remain true throughout the evolution of the product.
+
+Available next action: [Create a downloadable DOCX file here in this chat containing the editable prose above](chatgpt://followup-prompt?start_index=69864&end_index=69949)
