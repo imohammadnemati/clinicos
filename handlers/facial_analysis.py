@@ -4,6 +4,7 @@ import tempfile
 import logging
 import asyncio
 import json
+import re
 from datetime import datetime
 from typing import Optional
 
@@ -230,6 +231,7 @@ async def perform_facial_analysis(update: Update, context: ContextTypes.DEFAULT_
         metrics = compute_facial_metrics(landmarks_data.get('front', []))
 
         # Generate analysis using LLM
+        # F-002: Prompt explicitly blocks dosages, units, and definitive prescriptions.
         analysis_prompt = f"""
         You are a medical aesthetics AI assistant. Analyze the following facial metrics and provide a professional aesthetic recommendation.
         Patient gender: {gender}, age: {age}
@@ -247,7 +249,9 @@ async def perform_facial_analysis(update: Update, context: ContextTypes.DEFAULT_
         3. Mesotherapy, PRP, skin boosters
         4. Other treatments
 
-        For each recommendation, include estimated units/volume if possible, and priority (1 = highest).
+        Do not recommend specific dosages, units, or volumes. 
+        Provide only aesthetic observations and general treatment categories. 
+        Do not provide definitive medical prescriptions or patient-specific procedural quantities.
 
         Format the response as a JSON object with the following structure:
         {{
@@ -256,8 +260,6 @@ async def perform_facial_analysis(update: Update, context: ContextTypes.DEFAULT_
                 {{
                     "treatment_type": "Botox",
                     "area": "Forehead",
-                    "estimated_units": "20-30",
-                    "priority": 1,
                     "description": "Reduce forehead wrinkles",
                     "confidence": 0.85
                 }}
@@ -271,8 +273,22 @@ async def perform_facial_analysis(update: Update, context: ContextTypes.DEFAULT_
             # Try to parse JSON, fallback to raw text
             try:
                 analysis_data = json.loads(llm_response)
-            except:
-                # If not JSON, treat as plain text report
+                
+                # F-002 MEDICAL SAFETY GATE
+                for rec in analysis_data.get('recommendations', []):
+                    # Neutralize structured quantity fields if hallucinated
+                    if 'estimated_units' in rec:
+                        rec['estimated_units'] = None
+                    if 'estimated_volume' in rec:
+                        rec['estimated_volume'] = None
+                        
+                    # Safely scrub free-text descriptions containing obvious prescriptive dosing
+                    desc = rec.get('description', '')
+                    if re.search(r'\b\d+\s*(cc|ml|units|unit|mg)\b', desc, re.IGNORECASE):
+                        rec['description'] = "Safety Blocked: Prescriptive dosing removed. Please consult a clinician."
+                        logger.warning(f"Medical Safety Block triggered in Facial Analysis for user {user_id}")
+            except Exception as parse_e:
+                logger.warning(f"Failed to parse facial analysis JSON: {parse_e}")
                 analysis_data = {
                     "summary": "Analysis completed",
                     "recommendations": [],
