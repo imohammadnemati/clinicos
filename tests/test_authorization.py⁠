@@ -1,0 +1,46 @@
+import pytest
+from bot import remove_staff_callback
+from unittest.mock import patch, MagicMock, AsyncMock
+
+@pytest.mark.asyncio
+async def test_owner_cannot_delete_staff_different_clinic():
+    # Setup mock update and context
+    update = MagicMock()
+    update.effective_user.id = 100
+    update.callback_query.data = "remove_staff_50"
+    update.callback_query.answer = AsyncMock()
+    update.callback_query.edit_message_text = AsyncMock()
+    
+    with patch('bot.SessionLocal') as mock_session, \
+         patch('bot.get_user_role', return_value='owner'), \
+         patch('bot.get_user_clinic_id', return_value=1):
+         
+        db_mock = MagicMock()
+        mock_session.return_value = db_mock
+        
+        # Mock target staff belonging to clinic 2 (cross-tenant)
+        target_staff = MagicMock()
+        target_staff.clinic_id = 2
+        db_mock.query().filter_by().first.return_value = target_staff
+        
+        await remove_staff_callback(update, MagicMock())
+        
+        # Verify db.delete is NOT called
+        db_mock.delete.assert_not_called()
+        # Verify unauthorized rejection message
+        update.callback_query.edit_message_text.assert_called_once_with("Unauthorized action.")
+
+@pytest.mark.asyncio
+async def test_secretary_cannot_delete_staff():
+    update = MagicMock()
+    update.effective_user.id = 100
+    update.callback_query.data = "remove_staff_50"
+    update.callback_query.answer = AsyncMock()
+    update.callback_query.edit_message_text = AsyncMock()
+    
+    with patch('bot.SessionLocal'), \
+         patch('bot.get_user_role', return_value='secretary'), \
+         patch('bot.get_user_clinic_id', return_value=1):
+        
+        await remove_staff_callback(update, MagicMock())
+        update.callback_query.edit_message_text.assert_called_once_with("Unauthorized action.")
