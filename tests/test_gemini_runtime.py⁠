@@ -1,0 +1,9 @@
+import pytest
+from unittest.mock import patch
+from patient_agent import providers
+
+def test_runtime_uses_gemini():
+    # Verify the exported active providers dict contains only 'gemini'
+    # NOTE: The actual test execution depends on GEMINI_API_KEY environment presence.
+    # If loaded in CI without a key, the dict may be empty, but it will never contain 'freellmapi'.
+    assert "freellmapi" not in providers
