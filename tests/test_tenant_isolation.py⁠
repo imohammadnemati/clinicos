@@ -1,0 +1,20 @@
+import pytest
+from utils.role_utils import get_user_clinic_id
+from bot import get_or_create_patient_by_telegram
+from unittest.mock import patch, MagicMock
+
+def test_unknown_user_returns_no_tenant():
+    with patch('utils.role_utils.SessionLocal') as mock_session:
+        db_mock = MagicMock()
+        mock_session.return_value = db_mock
+        # Simulating neither Staff nor Patient records exist
+        db_mock.query().filter_by().first.return_value = None
+        
+        clinic_id = get_user_clinic_id(999999)
+        assert clinic_id is None
+
+def test_unknown_user_cannot_create_patient(mock_db):
+    with patch('bot.get_patient_by_telegram_id', return_value=None):
+        patient = get_or_create_patient_by_telegram(999999, "Test User", None, mock_db)
+        assert patient is None
+        mock_db.add.assert_not_called()
