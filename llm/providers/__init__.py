@@ -1,10 +1,11 @@
 """
 Providers module – exports available providers.
-Only FreeLLMAPI is used; all other providers are disabled.
+Only Gemini is used; all other providers are isolated from runtime.
 """
 
-# Only import the provider we actually use
-from .freellmapi_provider import FreeLLMAPIProvider
+# F-003: Export only GeminiProvider for the active runtime
+from .gemini_provider import GeminiProvider
 
-# Do not import any other providers (LocalLLM, Groq, OpenAI, etc.)
-# They are not used in this deployment.
+__all__ = [
+    "GeminiProvider"
+]
