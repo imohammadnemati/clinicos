@@ -3,7 +3,7 @@ ClinicOS – Patient Message Agent
 Core business logic: processes incoming patient messages, manages conversation state,
 patient memory, lead scoring, and invokes the LLM router for AI responses.
 
-ONLY FreeLLMAPI is used as the LLM provider.
+ONLY Gemini is used as the LLM provider.
 Automatically saves new Q&A pairs to KnowledgeItem for future use.
 """
 
@@ -16,7 +16,7 @@ from typing import Optional
 
 from config import (
     LEAD_THRESHOLD,
-    FREELLMAPI_API_KEY,
+    GEMINI_API_KEY,
 )
 from database import SessionLocal
 from models import (
@@ -46,8 +46,8 @@ from llm.provider_router import ProviderRouter
 from llm.provider_manager import ProviderManager
 from llm.state_store import StateStore
 from llm.cost_manager import CostManager
-# Only FreeLLMAPI provider is used
-from llm.providers.freellmapi_provider import FreeLLMAPIProvider
+# Only Gemini provider is used
+from llm.providers.gemini_provider import GeminiProvider
 
 logger = logging.getLogger(__name__)
 
@@ -77,13 +77,13 @@ def ensure_facts_keys(facts: dict) -> dict:
 _state_store = StateStore()
 _cost_manager = CostManager()
 
-# Build provider instances – ONLY FreeLLMAPI
+# Build provider instances – ONLY Gemini
 providers = {}
-if FREELLMAPI_API_KEY:
-    providers["freellmapi"] = FreeLLMAPIProvider()
-    logger.info("✅ FreeLLMAPI provider enabled")
+if GEMINI_API_KEY:
+    providers["gemini"] = GeminiProvider()
+    logger.info("✅ Gemini provider enabled")
 else:
-    logger.error("❌ FREELLMAPI_API_KEY not set! No LLM available.")
+    logger.critical("❌ GEMINI_API_KEY not set! No LLM available.")
 
 _provider_manager = ProviderManager(
     providers=providers,
