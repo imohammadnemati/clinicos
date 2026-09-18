@@ -27,7 +27,7 @@ from models import (
     Clinic, Staff, Patient, PatientAlias, Lead, Appointment,
     AppointmentRequest, PipelineHistory, EscalationLog, RawMessage
 )
-from patient_agent import process_patient_message
+from patient_agent import process_patient_message, shutdown_llm_provider
 from appointment_engine import create_appointment_request
 from kpi_engine import get_kpi_summary
 from scheduler import start_scheduler
@@ -914,6 +914,14 @@ def main():
             logger.info("⏰ Scheduler started.")
 
     app.post_init = startup
+
+    async def shutdown(application):
+        from scheduler import stop_scheduler
+        stop_scheduler()
+        await shutdown_llm_provider()
+        logger.info("ClinicOS shutdown cleanup completed.")
+
+    app.post_shutdown = shutdown
 
     # Register handlers
     app.add_handler(CommandHandler("start", start))
