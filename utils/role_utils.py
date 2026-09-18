@@ -5,7 +5,7 @@ Each function creates its own database session to avoid None errors.
 
 from typing import Optional
 from database import SessionLocal
-from models import Staff, Patient, Clinic
+from models import Staff, Patient, PatientAlias
 
 
 def get_user_role(user_id: int) -> str:
@@ -45,21 +45,33 @@ def get_user_language(user_id: int) -> str:
 
 def get_user_clinic_id(user_id: int) -> Optional[int]:
     """
-    Get user's clinic ID from database.
-    Creates its own database session.
-    Returns None if the user does not belong to a valid tenant.
+    Resolve the authenticated user's clinic without unsafe cross-tenant fallback.
+
+    Staff membership is authoritative. For patients, the Telegram alias is the
+    identity link; a patient is considered safely resolvable only when all
+    matching aliases point to exactly one clinic. Ambiguous or missing tenant
+    context returns None.
     """
     db = SessionLocal()
     try:
         staff = db.query(Staff).filter_by(telegram_id=user_id).first()
-        if staff:
+        if staff and staff.clinic_id:
             return staff.clinic_id
-        patient = db.query(Patient).filter_by(telegram_id=user_id).first()
-        if patient and patient.clinic_id:
-            return patient.clinic_id
-            
-        # F-001: Removed unsafe fallback to db.query(Clinic).first()
-        # Enforcing invariant: NO TRUSTED TENANT -> NO TENANT-OWNED OPERATION
+
+        clinic_ids = (
+            db.query(Patient.clinic_id)
+            .join(PatientAlias, PatientAlias.patient_id == Patient.id)
+            .filter(
+                PatientAlias.platform == "telegram",
+                PatientAlias.external_user_id == str(user_id),
+                Patient.clinic_id.isnot(None),
+            )
+            .distinct()
+            .all()
+        )
+        resolved = {row[0] for row in clinic_ids if row[0] is not None}
+        if len(resolved) == 1:
+            return next(iter(resolved))
         return None
     finally:
         db.close()
