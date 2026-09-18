@@ -424,7 +424,9 @@ async def appointment_confirm_callback(update: Update, context: ContextTypes.DEF
             return ConversationHandler.END
         patient = get_patient_by_telegram_id(user_id, db, clinic_id=clinic_id)
         if not patient:
-            patient = get_or_create_patient_by_telegram(user_id, update.effective_user.full_name, db)
+            patient = get_or_create_patient_by_telegram(
+                user_id, update.effective_user.full_name, db, clinic_id=clinic_id
+            )
         service = context.user_data['booking_service']
         date_str = context.user_data['booking_date']
         time_str = context.user_data['booking_time']
