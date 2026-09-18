@@ -3,7 +3,7 @@ ClinicOS – Patient Message Agent
 Core business logic: processes incoming patient messages, manages conversation state,
 patient memory, lead scoring, and invokes the LLM router for AI responses.
 
-ONLY Gemini is used as the LLM provider.
+The configured FreeLLMAPI proxy is used as the LLM provider.
 Automatically saves new Q&A pairs to KnowledgeItem for future use.
 """
 
@@ -46,7 +46,7 @@ from llm.provider_router import ProviderRouter
 from llm.provider_manager import ProviderManager
 from llm.state_store import StateStore
 from llm.cost_manager import CostManager
-# Only Gemini provider is used
+# Use the configured FreeLLMAPI provider
 from llm.providers.freellmapi_provider import FreeLLMAPIProvider
 
 logger = logging.getLogger(__name__)
