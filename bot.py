@@ -866,8 +866,13 @@ async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # ========== Startup Diagnostics ==========
 def startup_diagnostics():
-    """Verify configuration and log provider status."""
+    """Verify required production configuration before polling starts."""
     logger.info("=== ClinicOS Startup Diagnostics ===")
+    if not BOT_TOKEN:
+        raise RuntimeError("BOT_TOKEN is not configured")
+    if not FREELLMAPI_API_KEY:
+        logger.warning("FREELLMAPI_API_KEY is not configured; AI replies will be unavailable.")
+
     if not REDIS_URL:
         logger.warning("REDIS_URL not set. Scores will NOT persist across restarts.")
     else:
