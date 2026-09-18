@@ -439,7 +439,7 @@ async def appointment_confirm_callback(update: Update, context: ContextTypes.DEF
     try:
         clinic_id = get_user_clinic_id(user_id)
         if clinic_id is None:
-            await update.message.reply_text(
+            await query.edit_message_text(
                 "Clinic context could not be verified. Please register through your clinic link first."
             )
             return ConversationHandler.END
