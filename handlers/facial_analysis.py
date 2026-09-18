@@ -525,4 +525,15 @@ async def perform_facial_analysis(update: Update, context: ContextTypes.DEFAULT_
         logger.error(f"Facial analysis error: {e}", exc_info=True)
         await update.message.reply_text("An error occurred during analysis. Please try again later.")
     finally:
+        # Remove temporary uploaded images even when analysis fails midway.
+        for path in (
+            context.user_data.get('facial_front_photo'),
+            context.user_data.get('facial_right_photo'),
+            context.user_data.get('facial_left_photo'),
+        ):
+            if path and os.path.exists(path):
+                try:
+                    os.unlink(path)
+                except OSError:
+                    logger.warning("Failed to remove temporary facial image: %s", path)
         db.close()
