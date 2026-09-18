@@ -93,6 +93,13 @@ _provider_manager = ProviderManager(
 
 _router = ProviderRouter(provider_manager=_provider_manager)
 
+async def shutdown_llm_provider() -> None:
+    """Release the shared LLM provider HTTP client on application shutdown."""
+    provider = providers.get("freellmapi")
+    if provider and hasattr(provider, "aclose"):
+        await provider.aclose()
+
+
 # ---------- Prompts ----------
 FACTS_PROMPT = """
 You are an AI assistant for a cosmetic clinic. Extract structured facts from the patient message.
