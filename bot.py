@@ -232,6 +232,11 @@ async def language_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         set_user_language(user_id, lang_code, db)
         role = get_user_role(user_id)
         clinic_id = get_user_clinic_id(user_id)
+        if clinic_id is None:
+            await query.edit_message_text(
+                "Clinic context could not be verified. Please register through your clinic link first."
+            )
+            return ConversationHandler.END
         welcome = get_text("lang_selected", lang_code)
         await query.edit_message_text(welcome)
         await send_main_menu(update, context, role, clinic_id, db, user_id, lang_code)
@@ -259,6 +264,11 @@ async def main_menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         role = get_user_role(user_id)
         clinic_id = get_user_clinic_id(user_id)
+        if clinic_id is None:
+            await update.message.reply_text(
+                "Clinic context could not be verified. Please register through your clinic link first."
+            )
+            return
 
         btn_change = get_text("btn_change_language", lang)
         if text == btn_change:
@@ -407,7 +417,12 @@ async def appointment_confirm_callback(update: Update, context: ContextTypes.DEF
     db = SessionLocal()
     try:
         clinic_id = get_user_clinic_id(user_id)
-        patient = get_patient_by_telegram_id(user_id, db)
+        if clinic_id is None:
+            await update.message.reply_text(
+                "Clinic context could not be verified. Please register through your clinic link first."
+            )
+            return ConversationHandler.END
+        patient = get_patient_by_telegram_id(user_id, db, clinic_id=clinic_id)
         if not patient:
             patient = get_or_create_patient_by_telegram(user_id, update.effective_user.full_name, db)
         service = context.user_data['booking_service']
@@ -544,6 +559,11 @@ async def add_staff_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
     db = SessionLocal()
     try:
         clinic_id = get_user_clinic_id(user_id)
+        if clinic_id is None:
+            await update.message.reply_text(
+                "Clinic context could not be verified."
+            )
+            return ConversationHandler.END
         role = context.user_data['new_staff_role']
         new_id = context.user_data['new_staff_id']
         if db.query(Staff).filter_by(telegram_id=new_id).first():
