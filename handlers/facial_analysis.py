@@ -38,7 +38,84 @@ from utils.role_utils import get_user_role, get_user_language, get_user_clinic_i
 from patient_agent import _router, save_to_knowledge
 from i18n import get_text
 
+
 logger = logging.getLogger(__name__)
+
+_PRESCRIPTIVE_QUANTITY_RE = re.compile(
+    r"(?i)\\b\\d+(?:\\.\\d+)?\\s*(?:cc|ml|units?|mg|µg|mcg|iu)\\b"
+)
+_PRESCRIPTIVE_FIELD_NAMES = {
+    "estimated_units", "estimated_volume", "dose", "dosage",
+    "units", "volume", "quantity", "frequency",
+}
+
+
+def _sanitize_medical_output(value):
+    """Recursively remove prescriptive quantities from untrusted LLM output."""
+    if isinstance(value, dict):
+        sanitized = {}
+        for key, item in value.items():
+            if str(key).strip().lower() in _PRESCRIPTIVE_FIELD_NAMES:
+                sanitized[key] = None
+            else:
+                sanitized[key] = _sanitize_medical_output(item)
+        return sanitized
+    if isinstance(value, list):
+        return [_sanitize_medical_output(item) for item in value]
+    if isinstance(value, str) and _PRESCRIPTIVE_QUANTITY_RE.search(value):
+        logger.warning("Medical safety gate blocked a prescriptive quantity.")
+        return "Safety blocked: prescriptive dosing/quantity removed. Please consult a qualified clinician."
+    return value
+
+
+def _safe_analysis_data(raw):
+    """Normalize only trusted schema fields from untrusted model output."""
+    if not isinstance(raw, dict):
+        return {
+            "summary": "The facial analysis could not be safely parsed.",
+            "recommendations": [],
+            "disclaimer": "This analysis is informational only and does not replace an in-person clinical assessment.",
+        }
+
+    raw = _sanitize_medical_output(raw)
+    recommendations = raw.get("recommendations", [])
+    if not isinstance(recommendations, list):
+        recommendations = []
+
+    safe_recommendations = []
+    for rec in recommendations:
+        if not isinstance(rec, dict):
+            continue
+        safe_recommendations.append({
+            "treatment_type": str(rec.get("treatment_type", ""))[:100],
+            "area": str(rec.get("area", ""))[:100],
+            "description": str(rec.get("description", ""))[:1000],
+            "confidence": rec.get("confidence", None),
+            "priority": rec.get("priority", None),
+            "estimated_units": None,
+            "estimated_volume": None,
+            "price_estimate": None,
+        })
+
+    return {
+        "summary": str(raw.get("summary", ""))[:2000],
+        "recommendations": safe_recommendations,
+        "disclaimer": "This analysis is informational only and does not replace an in-person clinical assessment.",
+    }
+
+
+def _build_safe_report_text(analysis_data):
+    """Build persisted and delivered text only from sanitized structured data."""
+    lines = [analysis_data.get("summary", "").strip()]
+    for rec in analysis_data.get("recommendations", []):
+        treatment = rec.get("treatment_type", "").strip()
+        area = rec.get("area", "").strip()
+        description = rec.get("description", "").strip()
+        if treatment or area or description:
+            lines.append(f"• {treatment} - {area}: {description}".strip())
+    lines.append(analysis_data.get("disclaimer", "").strip())
+    return "\n\n".join(line for line in lines if line)
+
 
 # Conversation States
 FACIAL_START = 30
@@ -181,12 +258,24 @@ async def perform_facial_analysis(update: Update, context: ContextTypes.DEFAULT_
     user_id = update.effective_user.id
     db = SessionLocal()
     try:
-        # Get patient
-        patient_alias = db.query(PatientAlias).filter_by(platform='telegram', external_user_id=str(user_id)).first()
-        if not patient_alias:
-            await update.message.reply_text("Patient not found. Please register with /start first.")
+        # Resolve tenant first; never use an unscoped Telegram alias lookup.
+        clinic_id = get_user_clinic_id(user_id)
+        if clinic_id is None:
+            await update.message.reply_text(
+                "Clinic context could not be verified. Please register through your clinic link first."
+            )
             return
-        patient = db.query(Patient).filter_by(id=patient_alias.patient_id).first()
+
+        patient = (
+            db.query(Patient)
+            .join(PatientAlias, PatientAlias.patient_id == Patient.id)
+            .filter(
+                PatientAlias.platform == "telegram",
+                PatientAlias.external_user_id == str(user_id),
+                Patient.clinic_id == clinic_id,
+            )
+            .first()
+        )
         if not patient:
             await update.message.reply_text("Patient not found. Please register with /start first.")
             return
@@ -268,37 +357,23 @@ async def perform_facial_analysis(update: Update, context: ContextTypes.DEFAULT_
         }}
         """
 
+        analysis_data = {
+            "summary": "Analysis could not be safely completed.",
+            "recommendations": [],
+            "disclaimer": "This analysis is informational only and does not replace an in-person clinical assessment.",
+        }
+
         try:
             llm_response = await _router.generate(analysis_prompt, task="facial_analysis")
-            # Try to parse JSON, fallback to raw text
             try:
-                analysis_data = json.loads(llm_response)
-                
-                # F-002 MEDICAL SAFETY GATE
-                for rec in analysis_data.get('recommendations', []):
-                    # Neutralize structured quantity fields if hallucinated
-                    if 'estimated_units' in rec:
-                        rec['estimated_units'] = None
-                    if 'estimated_volume' in rec:
-                        rec['estimated_volume'] = None
-                        
-                    # Safely scrub free-text descriptions containing obvious prescriptive dosing
-                    desc = rec.get('description', '')
-                    if re.search(r'\b\d+\s*(cc|ml|units|unit|mg)\b', desc, re.IGNORECASE):
-                        rec['description'] = "Safety Blocked: Prescriptive dosing removed. Please consult a clinician."
-                        logger.warning(f"Medical Safety Block triggered in Facial Analysis for user {user_id}")
-            except Exception as parse_e:
-                logger.warning(f"Failed to parse facial analysis JSON: {parse_e}")
-                analysis_data = {
-                    "summary": "Analysis completed",
-                    "recommendations": [],
-                    "disclaimer": "This analysis is for informational purposes only."
-                }
-                report_text = llm_response
+                parsed = json.loads(llm_response)
+                analysis_data = _safe_analysis_data(parsed)
+            except (TypeError, json.JSONDecodeError) as parse_e:
+                logger.warning("Facial analysis JSON rejected: %s", parse_e)
         except Exception as e:
             logger.error(f"LLM analysis failed: {e}")
-            report_text = "Analysis could not be completed at this time. Please try again later."
-            analysis_data = {"recommendations": []}
+
+        report_text = _build_safe_report_text(analysis_data)
 
         # Save to database
         analysis = FacialAnalysis(
@@ -313,7 +388,7 @@ async def perform_facial_analysis(update: Update, context: ContextTypes.DEFAULT_
             volume_balance_score=metrics.get('volume_balance', 0),
             facial_harmony_score=metrics.get('facial_harmony', 0),
             estimated_apparent_age=age,
-            report_text=report_text if 'report_text' in locals() else llm_response if 'llm_response' in locals() else "",
+            report_text=report_text,
             status='completed'
         )
         db.add(analysis)
@@ -347,12 +422,12 @@ async def perform_facial_analysis(update: Update, context: ContextTypes.DEFAULT_
                 analysis_id=analysis.id,
                 treatment_type=rec.get('treatment_type', ''),
                 area=rec.get('area', ''),
-                estimated_units=rec.get('estimated_units', None),
-                estimated_volume=rec.get('estimated_volume', None),
+                estimated_units=None,
+                estimated_volume=None,
                 confidence=rec.get('confidence', 0.8),
                 priority=rec.get('priority', 5),
                 description=rec.get('description', ''),
-                price_estimate=rec.get('price_estimate', None)
+                price_estimate=None
             )
             db.add(tr)
 
@@ -422,7 +497,7 @@ async def perform_facial_analysis(update: Update, context: ContextTypes.DEFAULT_
 
         # Save Q&A to knowledge base for future
         question = "چه خدماتی برای بهبود ظاهر صورت پیشنهاد می‌شود؟"  # generic
-        answer = report_text[:2000] if report_text else "تحلیل چهره انجام شد."
+        answer = _build_safe_report_text(analysis_data)[:2000] if analysis_data else "تحلیل چهره انجام شد."
         await save_to_knowledge(patient.clinic_id, question, answer, db)
 
     except Exception as e:
