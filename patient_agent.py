@@ -214,10 +214,8 @@ async def update_conversation_state(
         raise ValueError("Session does not belong to the trusted clinic")
 
     state = db.query(ConversationState).filter(
-            ConversationState.session_id == session_id,
-            ConversationState.session_id == SessionModel.id,
-            SessionModel.clinic_id == clinic_id,
-        ).first()
+        ConversationState.session_id == session.id,
+    ).first()
     if not state:
         state = ConversationState(session_id=session_id)
         db.add(state)
