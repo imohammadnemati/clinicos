@@ -2,7 +2,8 @@ import pytest
 from unittest.mock import MagicMock, patch
 
 from bot import get_or_create_patient_by_telegram, get_patient_by_telegram_id
-from utils.role_utils import get_user_clinic_id
+from utils.role_utils import get_user_clinic_id, get_user_language
+from models import Patient, PatientAlias
 
 
 def test_unknown_user_has_no_tenant():
