@@ -171,12 +171,23 @@ def confirm_appointment(request_id: int, confirmed_date: datetime, staff_id: int
     finally:
         db.close()
 
-def cancel_appointment(appointment_id: int, reason: Optional[str] = None, staff_id: Optional[int] = None) -> bool:
+def cancel_appointment(
+    appointment_id: int,
+    reason: Optional[str] = None,
+    staff_id: Optional[int] = None,
+    clinic_id: Optional[int] = None,
+) -> bool:
     """Cancel a scheduled appointment and update lead pipeline."""
     db = SessionLocal()
     try:
         appt = db.query(Appointment).filter_by(id=appointment_id).first()
         if not appt or appt.status == APPOINTMENT_CANCELLED:
+            return False
+        if clinic_id is None and staff_id is not None:
+            staff = db.query(Staff).filter_by(id=staff_id).first()
+            clinic_id = staff.clinic_id if staff else None
+        if clinic_id is None or appt.clinic_id != clinic_id:
+            logger.error("Appointment cancellation denied: clinic mismatch")
             return False
         if staff_id is not None:
             staff = db.query(Staff).filter_by(id=staff_id).first()
@@ -201,12 +212,19 @@ def cancel_appointment(appointment_id: int, reason: Optional[str] = None, staff_
     finally:
         db.close()
 
-def complete_appointment(appointment_id: int, revenue: Optional[float] = None) -> bool:
+def complete_appointment(
+    appointment_id: int,
+    revenue: Optional[float] = None,
+    clinic_id: Optional[int] = None,
+) -> bool:
     """Mark appointment as completed and optionally record revenue."""
     db = SessionLocal()
     try:
         appt = db.query(Appointment).filter_by(id=appointment_id).first()
         if not appt or appt.status != APPOINTMENT_SCHEDULED:
+            return False
+        if clinic_id is None or appt.clinic_id != clinic_id:
+            logger.error("Appointment completion denied: clinic mismatch")
             return False
         appt.status = APPOINTMENT_COMPLETED
         if revenue is not None:
