@@ -41,12 +41,15 @@ def is_within_working_hours(clinic_id: int, current_time: datetime = None) -> bo
         return now_time >= start or now_time <= end
 
 
-def is_active_conversation(session_id: int, db, timeout_minutes: int = 30) -> bool:
+def is_active_conversation(session_id: int, db, timeout_minutes: int = 30, clinic_id: int = None) -> bool:
     """
     Determine if a conversation is still active (recent message exchange).
     Used to allow replies during off‑hours if the user is still waiting.
     """
-    session = db.query(Session).filter_by(id=session_id).first()
+    query = db.query(Session).filter(Session.id == session_id)
+    if clinic_id is not None:
+        query = query.filter(Session.clinic_id == clinic_id)
+    session = query.first()
     if not session or not session.last_activity:
         return False
     now = datetime.utcnow()
@@ -71,7 +74,9 @@ async def can_auto_reply(clinic_id: int, session_id: int, db) -> bool:
         return True
 
     # Outside working hours → reply only if conversation is active
-    if is_active_conversation(session_id, db, wh.active_timeout_minutes):
+    if is_active_conversation(
+        session_id, db, wh.active_timeout_minutes, clinic_id=clinic_id
+    ):
         return True
 
     return False

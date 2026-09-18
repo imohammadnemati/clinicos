@@ -3,7 +3,7 @@ ClinicOS – Patient Message Agent
 Core business logic: processes incoming patient messages, manages conversation state,
 patient memory, lead scoring, and invokes the LLM router for AI responses.
 
-ONLY Gemini is used as the LLM provider.
+The configured FreeLLMAPI proxy is used as the LLM provider.
 Automatically saves new Q&A pairs to KnowledgeItem for future use.
 """
 
@@ -16,7 +16,7 @@ from typing import Optional
 
 from config import (
     LEAD_THRESHOLD,
-    GEMINI_API_KEY,
+    FREELLMAPI_API_KEY,
 )
 from database import SessionLocal
 from models import (
@@ -46,8 +46,8 @@ from llm.provider_router import ProviderRouter
 from llm.provider_manager import ProviderManager
 from llm.state_store import StateStore
 from llm.cost_manager import CostManager
-# Only Gemini provider is used
-from llm.providers.gemini_provider import GeminiProvider
+# Use the configured FreeLLMAPI provider
+from llm.providers.freellmapi_provider import FreeLLMAPIProvider
 
 logger = logging.getLogger(__name__)
 
@@ -77,13 +77,13 @@ def ensure_facts_keys(facts: dict) -> dict:
 _state_store = StateStore()
 _cost_manager = CostManager()
 
-# Build provider instances – ONLY Gemini
+ # Build provider instances – configured FreeLLMAPI proxy
 providers = {}
-if GEMINI_API_KEY:
-    providers["gemini"] = GeminiProvider()
-    logger.info("✅ Gemini provider enabled")
+if FREELLMAPI_API_KEY:
+    providers["freellmapi"] = FreeLLMAPIProvider()
+    logger.info("FreeLLMAPI provider enabled")
 else:
-    logger.critical("❌ GEMINI_API_KEY not set! No LLM available.")
+    logger.critical("FREELLMAPI_API_KEY not set. No LLM provider available.")
 
 _provider_manager = ProviderManager(
     providers=providers,
@@ -92,6 +92,13 @@ _provider_manager = ProviderManager(
 )
 
 _router = ProviderRouter(provider_manager=_provider_manager)
+
+async def shutdown_llm_provider() -> None:
+    """Release the shared LLM provider HTTP client on application shutdown."""
+    provider = providers.get("freellmapi")
+    if provider and hasattr(provider, "aclose"):
+        await provider.aclose()
+
 
 # ---------- Prompts ----------
 FACTS_PROMPT = """
@@ -187,8 +194,13 @@ Cevabın:""",
 }
 
 # ---------- Helper Functions ----------
-async def get_conversation_history(session_id: int, db, limit: int = 6) -> str:
-    events = db.query(Event).filter(Event.session_id == session_id).order_by(Event.created_at.desc()).limit(limit).all()
+async def get_conversation_history(
+    session_id: int, db, clinic_id: int, limit: int = 6
+) -> str:
+    events = db.query(Event).filter(
+        Event.session_id == session_id,
+        Event.clinic_id == clinic_id,
+    ).order_by(Event.created_at.desc()).limit(limit).all()
     history_list = []
     for ev in reversed(events):
         if ev.extracted_question:
@@ -196,8 +208,21 @@ async def get_conversation_history(session_id: int, db, limit: int = 6) -> str:
     return "\n".join(history_list)
 
 
-async def update_conversation_state(session_id: int, service: str, intent: str, objection: str, db):
-    state = db.query(ConversationState).filter_by(session_id=session_id).first()
+async def update_conversation_state(
+    session_id: int, service: str, intent: str, objection: str, db, clinic_id: int
+):
+    # ConversationState is linked to Session rather than carrying clinic_id itself.
+    # Resolve the session inside the trusted clinic before reading/updating state.
+    session = db.query(SessionModel).filter(
+        SessionModel.id == session_id,
+        SessionModel.clinic_id == clinic_id,
+    ).first()
+    if not session:
+        raise ValueError("Session does not belong to the trusted clinic")
+
+    state = db.query(ConversationState).filter(
+        ConversationState.session_id == session.id,
+    ).first()
     if not state:
         state = ConversationState(session_id=session_id)
         db.add(state)
@@ -298,12 +323,15 @@ async def process_patient_message(
         patient_id = get_or_create_patient(
             clinic_id, platform, external_user_id, user.username, user.full_name, raw_text
         )
-        patient = db.query(Patient).filter_by(id=patient_id).first()
+        patient = db.query(Patient).filter(
+            Patient.id == patient_id,
+            Patient.clinic_id == clinic_id,
+        ).first()
         if patient:
             patient.preferred_language = lang
             patient.last_seen = datetime.utcnow()
         session_id = get_or_create_session(clinic_id, patient_id)
-        update_session_activity(session_id)
+        update_session_activity(session_id, clinic_id=clinic_id)
 
         # Medical safety (keyword-based only)
         is_risk, risk_level = await check_medical_risk(raw_text)
@@ -359,8 +387,14 @@ async def process_patient_message(
         db.flush()
 
         # Get conversation context
-        conversation_history = await get_conversation_history(session_id, db, limit=6)
-        prev_state = db.query(ConversationState).filter_by(session_id=session_id).first()
+        conversation_history = await get_conversation_history(
+            session_id, db, clinic_id=clinic_id, limit=6
+        )
+        prev_state = db.query(ConversationState).filter(
+            ConversationState.session_id == session_id,
+            ConversationState.session_id == SessionModel.id,
+            SessionModel.clinic_id == clinic_id,
+        ).first()
         context_str = ""
         if prev_state and prev_state.current_goal:
             context_str = f"User previously asked about {prev_state.current_goal}. "
@@ -400,11 +434,19 @@ async def process_patient_message(
             facts["service"] = prev_state.current_goal
 
         await update_conversation_state(
-            session_id, facts.get("service"), facts.get("intent"), facts.get("objection_category"), db
+            session_id,
+            facts.get("service"),
+            facts.get("intent"),
+            facts.get("objection_category"),
+            db,
+            clinic_id=clinic_id,
         )
 
         if facts.get("requires_human"):
-            db.query(SessionModel).filter_by(id=session_id).update({"requires_human": True})
+            db.query(SessionModel).filter(
+                SessionModel.id == session_id,
+                SessionModel.clinic_id == clinic_id,
+            ).update({"requires_human": True})
             db.commit()
             human_msg = {
                 "fa": "درخواست شما به منشی منتقل شد. لطفاً صبر کنید.",
@@ -471,7 +513,11 @@ async def process_patient_message(
         db.flush()
 
         if lead_score >= LEAD_THRESHOLD:
-            existing_lead = db.query(Lead).filter_by(patient_id=patient_id, pipeline_stage="new").first()
+            existing_lead = db.query(Lead).filter(
+                Lead.patient_id == patient_id,
+                Lead.clinic_id == clinic_id,
+                Lead.pipeline_stage == "new",
+            ).first()
             if not existing_lead:
                 lead = Lead(
                     clinic_id=clinic_id,

@@ -76,3 +76,7 @@ class FreeLLMAPIProvider(BaseLLMProvider):
             return True
         except Exception:
             return False
+
+    async def aclose(self) -> None:
+        """Close the shared HTTP client during application shutdown."""
+        await self.client.aclose()

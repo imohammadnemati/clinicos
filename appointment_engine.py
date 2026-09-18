@@ -47,11 +47,14 @@ def _is_future_date(date: datetime) -> bool:
     """Check if date is in the future (with a 5‑minute buffer)."""
     return date > (datetime.utcnow() + timedelta(minutes=5))
 
-def _get_existing_appointment(patient_id: int, appointment_date: datetime) -> Optional[Appointment]:
-    """Prevent duplicate appointments."""
+def _get_existing_appointment(
+    clinic_id: int, patient_id: int, appointment_date: datetime
+) -> Optional[Appointment]:
+    """Prevent duplicate appointments inside the supplied clinic."""
     db = SessionLocal()
     try:
         existing = db.query(Appointment).filter(
+            Appointment.clinic_id == clinic_id,
             Appointment.patient_id == patient_id,
             Appointment.appointment_date == appointment_date,
             Appointment.status.in_([APPOINTMENT_SCHEDULED, APPOINTMENT_COMPLETED])
@@ -69,13 +72,14 @@ def create_appointment_request(lead_id: int, suggested_date: datetime, notes: Op
     db = SessionLocal()
     try:
         lead = db.query(Lead).filter_by(id=lead_id).first()
-        if not lead:
+        if not lead or not lead.clinic_id:
             logger.error(f"Lead {lead_id} not found")
             return None
 
         # Check for pending request already
         existing = db.query(AppointmentRequest).filter(
             AppointmentRequest.lead_id == lead_id,
+            AppointmentRequest.clinic_id == lead.clinic_id,
             AppointmentRequest.status == APPOINTMENT_REQUEST_PENDING
         ).first()
         if existing:
@@ -122,12 +126,25 @@ def confirm_appointment(request_id: int, confirmed_date: datetime, staff_id: int
             return False
 
         lead = db.query(Lead).filter_by(id=req.lead_id).first()
-        if not lead:
+        if not lead or lead.clinic_id != req.clinic_id:
             logger.error(f"Lead not found for request {request_id}")
             return False
 
+        staff = db.query(Staff).filter_by(id=staff_id).first()
+        if not staff or staff.clinic_id != req.clinic_id:
+            logger.error("Appointment confirmation denied: staff/clinic mismatch")
+            return False
+
+        patient = db.query(Patient).filter(
+            Patient.id == lead.patient_id,
+            Patient.clinic_id == req.clinic_id,
+        ).first()
+        if not patient:
+            logger.error("Appointment confirmation denied: patient/clinic mismatch")
+            return False
+
         # Check duplicate
-        existing = _get_existing_appointment(lead.patient_id, confirmed_date)
+        existing = _get_existing_appointment(req.clinic_id, lead.patient_id, confirmed_date)
         if existing:
             logger.warning(f"Duplicate appointment for patient {lead.patient_id} on {confirmed_date}")
             return False
@@ -162,15 +179,33 @@ def confirm_appointment(request_id: int, confirmed_date: datetime, staff_id: int
     finally:
         db.close()
 
-def cancel_appointment(appointment_id: int, reason: Optional[str] = None, staff_id: Optional[int] = None) -> bool:
+def cancel_appointment(
+    appointment_id: int,
+    reason: Optional[str] = None,
+    staff_id: Optional[int] = None,
+    clinic_id: Optional[int] = None,
+) -> bool:
     """Cancel a scheduled appointment and update lead pipeline."""
     db = SessionLocal()
     try:
         appt = db.query(Appointment).filter_by(id=appointment_id).first()
         if not appt or appt.status == APPOINTMENT_CANCELLED:
             return False
+        if clinic_id is None and staff_id is not None:
+            staff = db.query(Staff).filter_by(id=staff_id).first()
+            clinic_id = staff.clinic_id if staff else None
+        if clinic_id is None or appt.clinic_id != clinic_id:
+            logger.error("Appointment cancellation denied: clinic mismatch")
+            return False
+        if staff_id is not None:
+            staff = db.query(Staff).filter_by(id=staff_id).first()
+            if not staff or staff.clinic_id != appt.clinic_id:
+                logger.error("Appointment cancellation denied: staff/clinic mismatch")
+                return False
         appt.status = APPOINTMENT_CANCELLED
-        lead = db.query(Lead).filter_by(id=appt.lead_id).first()
+        lead = db.query(Lead).filter_by(
+            id=appt.lead_id, clinic_id=appt.clinic_id
+        ).first()
         if lead:
             lead.pipeline_stage = "lost"
             ph = PipelineHistory(lead_id=lead.id, stage="lost", changed_at=datetime.utcnow(), changed_by=staff_id)
@@ -185,17 +220,26 @@ def cancel_appointment(appointment_id: int, reason: Optional[str] = None, staff_
     finally:
         db.close()
 
-def complete_appointment(appointment_id: int, revenue: Optional[float] = None) -> bool:
+def complete_appointment(
+    appointment_id: int,
+    revenue: Optional[float] = None,
+    clinic_id: Optional[int] = None,
+) -> bool:
     """Mark appointment as completed and optionally record revenue."""
     db = SessionLocal()
     try:
         appt = db.query(Appointment).filter_by(id=appointment_id).first()
         if not appt or appt.status != APPOINTMENT_SCHEDULED:
             return False
+        if clinic_id is None or appt.clinic_id != clinic_id:
+            logger.error("Appointment completion denied: clinic mismatch")
+            return False
         appt.status = APPOINTMENT_COMPLETED
         if revenue is not None:
             appt.revenue = revenue
-        lead = db.query(Lead).filter_by(id=appt.lead_id).first()
+        lead = db.query(Lead).filter_by(
+            id=appt.lead_id, clinic_id=appt.clinic_id
+        ).first()
         if lead:
             lead.pipeline_stage = "completed"
             ph = PipelineHistory(lead_id=lead.id, stage="completed", changed_at=datetime.utcnow())
@@ -254,7 +298,10 @@ async def check_no_shows():
     for appt in past_appointments:
         appt.status = APPOINTMENT_NO_SHOW
         appt.no_show = True
-        lead = db.query(Lead).filter_by(id=appt.lead_id).first()
+        lead = db.query(Lead).filter(
+            Lead.id == appt.lead_id,
+            Lead.clinic_id == appt.clinic_id,
+        ).first()
         if lead:
             lead.pipeline_stage = "no_show"
             ph = PipelineHistory(lead_id=lead.id, stage="no_show", changed_at=datetime.utcnow())
@@ -275,8 +322,17 @@ async def _notify_staff_of_request(clinic_id: int, request_id: int):
         req = db.query(AppointmentRequest).filter_by(id=request_id).first()
         if not req:
             return
-        lead = db.query(Lead).filter_by(id=req.lead_id).first()
-        patient = db.query(Patient).filter_by(id=lead.patient_id).first() if lead else None
+        lead = db.query(Lead).filter(
+            Lead.id == req.lead_id,
+            Lead.clinic_id == req.clinic_id,
+        ).first()
+        patient = (
+            db.query(Patient).filter(
+                Patient.id == lead.patient_id,
+                Patient.clinic_id == req.clinic_id,
+            ).first()
+            if lead else None
+        )
         message = (
             f"📅 *New Appointment Request*\n\n"
             f"Patient: {patient.name if patient else 'Unknown'}\n"
@@ -323,8 +379,11 @@ def get_upcoming_appointments(clinic_id: int, days: int = 7) -> List[Dict]:
     db = SessionLocal()
     now = datetime.utcnow()
     future = now + timedelta(days=days)
-    appointments = db.query(Appointment, Patient).join(Patient).filter(
+    appointments = db.query(Appointment, Patient).join(
+        Patient, Patient.id == Appointment.patient_id
+    ).filter(
         Appointment.clinic_id == clinic_id,
+        Patient.clinic_id == clinic_id,
         Appointment.status == APPOINTMENT_SCHEDULED,
         Appointment.appointment_date > now,
         Appointment.appointment_date <= future
