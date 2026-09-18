@@ -79,6 +79,7 @@ def create_appointment_request(lead_id: int, suggested_date: datetime, notes: Op
         # Check for pending request already
         existing = db.query(AppointmentRequest).filter(
             AppointmentRequest.lead_id == lead_id,
+            AppointmentRequest.clinic_id == lead.clinic_id,
             AppointmentRequest.status == APPOINTMENT_REQUEST_PENDING
         ).first()
         if existing:
@@ -271,7 +272,10 @@ async def check_no_shows():
     for appt in past_appointments:
         appt.status = APPOINTMENT_NO_SHOW
         appt.no_show = True
-        lead = db.query(Lead).filter_by(id=appt.lead_id).first()
+        lead = db.query(Lead).filter(
+            Lead.id == appt.lead_id,
+            Lead.clinic_id == appt.clinic_id,
+        ).first()
         if lead:
             lead.pipeline_stage = "no_show"
             ph = PipelineHistory(lead_id=lead.id, stage="no_show", changed_at=datetime.utcnow())
@@ -292,8 +296,17 @@ async def _notify_staff_of_request(clinic_id: int, request_id: int):
         req = db.query(AppointmentRequest).filter_by(id=request_id).first()
         if not req:
             return
-        lead = db.query(Lead).filter_by(id=req.lead_id).first()
-        patient = db.query(Patient).filter_by(id=lead.patient_id).first() if lead else None
+        lead = db.query(Lead).filter(
+            Lead.id == req.lead_id,
+            Lead.clinic_id == req.clinic_id,
+        ).first()
+        patient = (
+            db.query(Patient).filter(
+                Patient.id == lead.patient_id,
+                Patient.clinic_id == req.clinic_id,
+            ).first()
+            if lead else None
+        )
         message = (
             f"📅 *New Appointment Request*\n\n"
             f"Patient: {patient.name if patient else 'Unknown'}\n"
