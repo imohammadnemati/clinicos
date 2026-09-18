@@ -213,7 +213,11 @@ async def update_conversation_state(
     if not session:
         raise ValueError("Session does not belong to the trusted clinic")
 
-    state = db.query(ConversationState).filter_by(session_id=session_id).first()
+    state = db.query(ConversationState).filter(
+            ConversationState.session_id == session_id,
+            ConversationState.session_id == SessionModel.id,
+            SessionModel.clinic_id == clinic_id,
+        ).first()
     if not state:
         state = ConversationState(session_id=session_id)
         db.add(state)
@@ -381,7 +385,11 @@ async def process_patient_message(
         conversation_history = await get_conversation_history(
             session_id, db, clinic_id=clinic_id, limit=6
         )
-        prev_state = db.query(ConversationState).filter_by(session_id=session_id).first()
+        prev_state = db.query(ConversationState).filter(
+            ConversationState.session_id == session_id,
+            ConversationState.session_id == SessionModel.id,
+            SessionModel.clinic_id == clinic_id,
+        ).first()
         context_str = ""
         if prev_state and prev_state.current_goal:
             context_str = f"User previously asked about {prev_state.current_goal}. "
