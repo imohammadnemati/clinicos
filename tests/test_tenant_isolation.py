@@ -80,3 +80,26 @@ def test_identity_resolution_is_clinic_scoped():
         assert find_patient_by_alias(7, "telegram", external_user_id="123") == 42
 
     db.query.assert_called_once_with(PatientAlias)
+
+
+def test_patient_aliases_fail_closed_without_clinic():
+    from identity_resolution import get_patient_aliases
+    with patch("identity_resolution.SessionLocal") as session:
+        assert get_patient_aliases(123) == []
+        session.assert_not_called()
+
+
+def test_patient_aliases_are_clinic_scoped():
+    from identity_resolution import get_patient_aliases
+    db = MagicMock()
+    db.query.return_value.join.return_value.filter.return_value.all.return_value = []
+    with patch("identity_resolution.SessionLocal", return_value=db):
+        assert get_patient_aliases(123, clinic_id=7) == []
+    db.query.assert_called_once_with(PatientAlias)
+
+
+def test_working_hours_session_check_is_clinic_scoped():
+    from working_hours import is_active_conversation
+    db = MagicMock()
+    db.query.return_value.filter.return_value.filter.return_value.first.return_value = None
+    assert is_active_conversation(55, db, clinic_id=7) is False
