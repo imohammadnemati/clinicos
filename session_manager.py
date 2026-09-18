@@ -45,7 +45,10 @@ def get_or_create_session(clinic_id: int, patient_id: int) -> int:
             Session.clinic_id == clinic_id,
             Session.patient_id == patient_id,
             Session.is_active == True
-        ).update({"is_active": False, "end_time": now})
+        )
+        if clinic_id is not None:
+            query = query.filter(Session.clinic_id == clinic_id)
+        result = query.update({"is_active": False, "end_time": now})
 
         # Create new session
         new_session = Session(
@@ -70,14 +73,17 @@ def get_or_create_session(clinic_id: int, patient_id: int) -> int:
         db.close()
 
 
-def update_session_activity(session_id: int) -> bool:
+def update_session_activity(session_id: int, clinic_id: Optional[int] = None) -> bool:
     """
     Update the last_activity timestamp of a session.
     Returns True if successful, False otherwise.
     """
     db = SessionLocal()
     try:
-        session = db.query(Session).filter_by(id=session_id).first()
+        query = db.query(Session).filter(Session.id == session_id)
+        if clinic_id is not None:
+            query = query.filter(Session.clinic_id == clinic_id)
+        session = query.first()
         if session:
             session.last_activity = datetime.utcnow()
             db.commit()
@@ -91,7 +97,7 @@ def update_session_activity(session_id: int) -> bool:
         db.close()
 
 
-def close_session(session_id: int) -> bool:
+def close_session(session_id: int, clinic_id: Optional[int] = None) -> bool:
     """
     Close a session (set is_active=False, record end_time).
     Returns True on success.
@@ -99,7 +105,10 @@ def close_session(session_id: int) -> bool:
     db = SessionLocal()
     now = datetime.utcnow()
     try:
-        result = db.query(Session).filter_by(id=session_id).update({
+        query = db.query(Session).filter(Session.id == session_id)
+        if clinic_id is not None:
+            query = query.filter(Session.clinic_id == clinic_id)
+        result = query.update({
             "is_active": False,
             "end_time": now
         })
@@ -117,13 +126,18 @@ def close_session(session_id: int) -> bool:
         db.close()
 
 
-def set_session_requires_human(session_id: int, requires_human: bool = True) -> bool:
+def set_session_requires_human(
+    session_id: int, requires_human: bool = True, clinic_id: Optional[int] = None
+) -> bool:
     """
     Mark a session as needing human intervention.
     """
     db = SessionLocal()
     try:
-        result = db.query(Session).filter_by(id=session_id).update({
+        query = db.query(Session).filter(Session.id == session_id)
+        if clinic_id is not None:
+            query = query.filter(Session.clinic_id == clinic_id)
+        result = query.update({
             "requires_human": requires_human,
             "conversation_status": "human_required" if requires_human else "active"
         })
@@ -137,13 +151,18 @@ def set_session_requires_human(session_id: int, requires_human: bool = True) -> 
         db.close()
 
 
-def get_session_conversation_state(session_id: int) -> Optional[Dict]:
+def get_session_conversation_state(
+    session_id: int, clinic_id: Optional[int] = None
+) -> Optional[Dict]:
     """
     Retrieve the conversation state of a session (for debugging and UI).
     """
     db = SessionLocal()
     try:
-        session = db.query(Session).filter_by(id=session_id).first()
+        query = db.query(Session).filter(Session.id == session_id)
+        if clinic_id is not None:
+            query = query.filter(Session.clinic_id == clinic_id)
+        session = query.first()
         if not session:
             return None
         return {
@@ -162,7 +181,7 @@ def get_session_conversation_state(session_id: int) -> Optional[Dict]:
         db.close()
 
 
-def is_session_active(session_id: int) -> bool:
+def is_session_active(session_id: int, clinic_id: Optional[int] = None) -> bool:
     """
     Check if a session is still considered active (based on last_activity).
     """
@@ -170,11 +189,14 @@ def is_session_active(session_id: int) -> bool:
     now = datetime.utcnow()
     cutoff = now - timedelta(hours=SESSION_HOURS)
     try:
-        session = db.query(Session).filter(
+        query = db.query(Session).filter(
             Session.id == session_id,
             Session.is_active == True,
             Session.last_activity > cutoff
-        ).first()
+        )
+        if clinic_id is not None:
+            query = query.filter(Session.clinic_id == clinic_id)
+        session = query.first()
         return session is not None
     except Exception as e:
         logger.error(f"Error checking active status for session {session_id}: {e}")
@@ -183,7 +205,7 @@ def is_session_active(session_id: int) -> bool:
         db.close()
 
 
-def close_all_patient_sessions(patient_id: int) -> int:
+def close_all_patient_sessions(patient_id: int, clinic_id: Optional[int] = None) -> int:
     """
     Close all active sessions belonging to a patient.
     Returns the number of sessions closed.
@@ -191,8 +213,9 @@ def close_all_patient_sessions(patient_id: int) -> int:
     db = SessionLocal()
     now = datetime.utcnow()
     try:
-        result = db.query(Session).filter(
+        query = db.query(Session).filter(
             Session.patient_id == patient_id,
+
             Session.is_active == True
         ).update({
             "is_active": False,
@@ -210,15 +233,18 @@ def close_all_patient_sessions(patient_id: int) -> int:
         db.close()
 
 
-def get_patient_session_history(patient_id: int, limit: int = 10) -> List[Dict]:
+def get_patient_session_history(
+    patient_id: int, limit: int = 10, clinic_id: Optional[int] = None
+) -> List[Dict]:
     """
     Return a list of the last `limit` sessions for a patient.
     """
     db = SessionLocal()
     try:
-        sessions = db.query(Session).filter(
-            Session.patient_id == patient_id
-        ).order_by(Session.start_time.desc()).limit(limit).all()
+        query = db.query(Session).filter(Session.patient_id == patient_id)
+        if clinic_id is not None:
+            query = query.filter(Session.clinic_id == clinic_id)
+        sessions = query.order_by(Session.start_time.desc()).limit(limit).all()
         return [
             {
                 "id": s.id,
