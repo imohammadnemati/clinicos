@@ -47,11 +47,14 @@ def _is_future_date(date: datetime) -> bool:
     """Check if date is in the future (with a 5‑minute buffer)."""
     return date > (datetime.utcnow() + timedelta(minutes=5))
 
-def _get_existing_appointment(patient_id: int, appointment_date: datetime) -> Optional[Appointment]:
-    """Prevent duplicate appointments."""
+def _get_existing_appointment(
+    clinic_id: int, patient_id: int, appointment_date: datetime
+) -> Optional[Appointment]:
+    """Prevent duplicate appointments inside the supplied clinic."""
     db = SessionLocal()
     try:
         existing = db.query(Appointment).filter(
+            Appointment.clinic_id == clinic_id,
             Appointment.patient_id == patient_id,
             Appointment.appointment_date == appointment_date,
             Appointment.status.in_([APPOINTMENT_SCHEDULED, APPOINTMENT_COMPLETED])
@@ -69,7 +72,7 @@ def create_appointment_request(lead_id: int, suggested_date: datetime, notes: Op
     db = SessionLocal()
     try:
         lead = db.query(Lead).filter_by(id=lead_id).first()
-        if not lead:
+        if not lead or not lead.clinic_id:
             logger.error(f"Lead {lead_id} not found")
             return None
 
@@ -122,12 +125,17 @@ def confirm_appointment(request_id: int, confirmed_date: datetime, staff_id: int
             return False
 
         lead = db.query(Lead).filter_by(id=req.lead_id).first()
-        if not lead:
+        if not lead or lead.clinic_id != req.clinic_id:
             logger.error(f"Lead not found for request {request_id}")
             return False
 
+        staff = db.query(Staff).filter_by(id=staff_id).first()
+        if not staff or staff.clinic_id != req.clinic_id:
+            logger.error("Appointment confirmation denied: staff/clinic mismatch")
+            return False
+
         # Check duplicate
-        existing = _get_existing_appointment(lead.patient_id, confirmed_date)
+        existing = _get_existing_appointment(req.clinic_id, lead.patient_id, confirmed_date)
         if existing:
             logger.warning(f"Duplicate appointment for patient {lead.patient_id} on {confirmed_date}")
             return False
@@ -169,8 +177,15 @@ def cancel_appointment(appointment_id: int, reason: Optional[str] = None, staff_
         appt = db.query(Appointment).filter_by(id=appointment_id).first()
         if not appt or appt.status == APPOINTMENT_CANCELLED:
             return False
+        if staff_id is not None:
+            staff = db.query(Staff).filter_by(id=staff_id).first()
+            if not staff or staff.clinic_id != appt.clinic_id:
+                logger.error("Appointment cancellation denied: staff/clinic mismatch")
+                return False
         appt.status = APPOINTMENT_CANCELLED
-        lead = db.query(Lead).filter_by(id=appt.lead_id).first()
+        lead = db.query(Lead).filter_by(
+            id=appt.lead_id, clinic_id=appt.clinic_id
+        ).first()
         if lead:
             lead.pipeline_stage = "lost"
             ph = PipelineHistory(lead_id=lead.id, stage="lost", changed_at=datetime.utcnow(), changed_by=staff_id)
@@ -195,7 +210,9 @@ def complete_appointment(appointment_id: int, revenue: Optional[float] = None) -
         appt.status = APPOINTMENT_COMPLETED
         if revenue is not None:
             appt.revenue = revenue
-        lead = db.query(Lead).filter_by(id=appt.lead_id).first()
+        lead = db.query(Lead).filter_by(
+            id=appt.lead_id, clinic_id=appt.clinic_id
+        ).first()
         if lead:
             lead.pipeline_stage = "completed"
             ph = PipelineHistory(lead_id=lead.id, stage="completed", changed_at=datetime.utcnow())
