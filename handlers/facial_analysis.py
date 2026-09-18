@@ -137,15 +137,36 @@ async def facial_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
     role = get_user_role(user_id)
     lang = get_user_language(user_id) or 'fa'
 
-    # Check usage limit for patients
+    # Check usage limit only against the tenant-scoped patient identity.
     if role == 'patient':
         db = SessionLocal()
         try:
-            usage = db.query(FacialAnalysisUsage).filter_by(patient_id=user_id).first()
-            if usage and usage.analysis_used:
+            clinic_id = get_user_clinic_id(user_id)
+            if clinic_id is None:
                 await update.message.reply_text(
-                    get_text("facial_limit_reached", lang)
+                    "Clinic context could not be verified. Please register through your clinic link first."
                 )
+                return ConversationHandler.END
+
+            patient = (
+                db.query(Patient)
+                .join(PatientAlias, PatientAlias.patient_id == Patient.id)
+                .filter(
+                    PatientAlias.platform == "telegram",
+                    PatientAlias.external_user_id == str(user_id),
+                    Patient.clinic_id == clinic_id,
+                )
+                .first()
+            )
+            if not patient:
+                await update.message.reply_text(
+                    "Patient not found. Please register with /start first."
+                )
+                return ConversationHandler.END
+
+            usage = db.query(FacialAnalysisUsage).filter_by(patient_id=patient.id).first()
+            if usage and usage.analysis_used:
+                await update.message.reply_text(get_text("facial_limit_reached", lang))
                 return ConversationHandler.END
         finally:
             db.close()
@@ -215,7 +236,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE, view:
         user_id = update.effective_user.id
         lang = get_user_language(user_id) or 'fa'
         await update.message.reply_text(get_text("facial_send_photo", lang))
-        return getattr(update, f'FACIAL_{view.upper()}_PHOTO')
+        return {'front': FACIAL_FRONT_PHOTO, 'right': FACIAL_RIGHT_PHOTO, 'left': FACIAL_LEFT_PHOTO}[view]
 
     photo = update.message.photo[-1]
     file = await context.bot.get_file(photo.file_id)
@@ -232,7 +253,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE, view:
         await update.message.reply_text(
             get_text("facial_quality_reject", lang).format(reason=reason)
         )
-        return getattr(update, f'FACIAL_{view.upper()}_PHOTO')
+        return {'front': FACIAL_FRONT_PHOTO, 'right': FACIAL_RIGHT_PHOTO, 'left': FACIAL_LEFT_PHOTO}[view]
 
     # Store path
     context.user_data[f'facial_{view}_photo'] = tmp_path
