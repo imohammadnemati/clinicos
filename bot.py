@@ -808,7 +808,10 @@ async def show_appointments(update: Update, context: ContextTypes.DEFAULT_TYPE,
         else:
             msg = get_text("appointments_title", lang) + "\n"
             for a in appointments:
-                patient = db.query(Patient).filter_by(id=a.patient_id).first()
+                patient = db.query(Patient).filter(
+                    Patient.id == a.patient_id,
+                    Patient.clinic_id == clinic_id,
+                ).first()
                 msg += get_text("appointments_item", lang).format(
                     name=patient.name if patient else "بیمار",
                     service=a.service,
