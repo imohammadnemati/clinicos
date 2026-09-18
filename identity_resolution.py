@@ -58,6 +58,7 @@ def extract_telegram_username(text: str) -> Optional[str]:
 
 # ========== Patient Lookup ==========
 def find_patient_by_alias(
+    clinic_id: int,
     platform: str,
     phone: Optional[str] = None,
     external_user_id: Optional[str] = None,
@@ -70,7 +71,11 @@ def find_patient_by_alias(
     """
     db = SessionLocal()
     try:
-        query = db.query(PatientAlias).filter_by(platform=platform)
+        query = (
+            db.query(PatientAlias)
+            .join(Patient, Patient.id == PatientAlias.patient_id)
+            .filter(PatientAlias.platform == platform, Patient.clinic_id == clinic_id)
+        )
         if phone:
             alias = query.filter_by(phone=phone).first()
             if alias:
@@ -92,7 +97,7 @@ def find_patient_by_alias(
         db.close()
 
 
-def find_patient_by_any_platform(phone: Optional[str] = None, external_user_id: Optional[str] = None) -> Optional[int]:
+def find_patient_by_any_platform(clinic_id: int, phone: Optional[str] = None, external_user_id: Optional[str] = None) -> Optional[int]:
     """
     Search across all platforms for a patient by phone or external_user_id.
     Useful for merging patients from different platforms.
@@ -101,7 +106,11 @@ def find_patient_by_any_platform(phone: Optional[str] = None, external_user_id: 
         return None
     db = SessionLocal()
     try:
-        query = db.query(PatientAlias)
+        query = (
+            db.query(PatientAlias)
+            .join(Patient, Patient.id == PatientAlias.patient_id)
+            .filter(Patient.clinic_id == clinic_id)
+        )
         if phone:
             alias = query.filter_by(phone=phone).first()
             if alias:
@@ -136,6 +145,7 @@ def get_or_create_patient(
 
     # Try to find patient by any alias (phone, external_user_id, username, display_name)
     patient_id = find_patient_by_alias(
+        clinic_id=clinic_id,
         platform=platform,
         phone=phone,
         external_user_id=external_user_id,
@@ -160,7 +170,7 @@ def get_or_create_patient(
             return patient_id
 
         # Try cross‑platform merge: if phone or external_user_id matches a patient from another platform
-        merged_id = find_patient_by_any_platform(phone=phone, external_user_id=external_user_id)
+        merged_id = find_patient_by_any_platform(clinic_id, phone=phone, external_user_id=external_user_id)
         if merged_id:
             patient = db.query(Patient).filter_by(id=merged_id).first()
             if patient:
@@ -288,3 +298,16 @@ def merge_patients(master_patient_id: int, slave_patient_id: int) -> bool:
         return False
     finally:
         db.close()
+
+def test_identity_resolution_is_clinic_scoped():
+    db = MagicMock()
+    q = db.query.return_value.join.return_value.filter.return_value
+    q.filter_by.return_value.first.return_value = None
+    q.first.return_value = 42
+
+    with patch("identity_resolution.SessionLocal", return_value=db):
+        from identity_resolution import find_patient_by_alias
+        assert find_patient_by_alias(7, "telegram", external_user_id="123") == 42
+
+    # The patient table must participate in the lookup so another clinic's alias cannot match.
+    db.query.assert_called_once_with(PatientAlias)
