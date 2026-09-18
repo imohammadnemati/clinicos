@@ -41,3 +41,15 @@ def test_patient_lookup_is_scoped_to_trusted_clinic():
         assert get_patient_by_telegram_id(12345, db) is None
 
     query.join.return_value.filter.assert_called_once()
+
+
+def test_patient_language_uses_telegram_alias_not_patient_telegram_id():
+    db = MagicMock()
+    staff_query = db.query.return_value
+    staff_query.filter_by.return_value.first.return_value = None
+    staff_query.join.return_value.filter.return_value.first.return_value = ("en",)
+
+    with patch("utils.role_utils.SessionLocal", return_value=db):
+        assert get_user_language(12345) == "en"
+
+    db.query.assert_any_call(Patient.preferred_language)
