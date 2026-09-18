@@ -57,6 +57,16 @@ def extract_telegram_username(text: str) -> Optional[str]:
 
 
 # ========== Patient Lookup ==========
+def _unique_patient_id(query) -> Optional[int]:
+    """Return a patient id only when the identity resolves to exactly one patient."""
+    patient_ids = {row[0] for row in query.with_entities(Patient.id).distinct().all()}
+    if len(patient_ids) == 1:
+        return next(iter(patient_ids))
+    if len(patient_ids) > 1:
+        logger.warning("Ambiguous patient identity detected; refusing to choose a patient.")
+    return None
+
+
 def find_patient_by_alias(
     clinic_id: int,
     platform: str,
@@ -77,21 +87,21 @@ def find_patient_by_alias(
             )
         )
         if phone:
-            alias = query.filter_by(phone=phone).first()
-            if alias:
-                return alias.patient_id
+            patient_id = _unique_patient_id(query.filter_by(phone=phone))
+            if patient_id is not None:
+                return patient_id
         if external_user_id:
-            alias = query.filter_by(external_user_id=external_user_id).first()
-            if alias:
-                return alias.patient_id
+            patient_id = _unique_patient_id(query.filter_by(external_user_id=external_user_id))
+            if patient_id is not None:
+                return patient_id
         if username:
-            alias = query.filter_by(username=username).first()
-            if alias:
-                return alias.patient_id
+            patient_id = _unique_patient_id(query.filter_by(username=username))
+            if patient_id is not None:
+                return patient_id
         if display_name:
-            alias = query.filter_by(display_name=display_name).first()
-            if alias:
-                return alias.patient_id
+            patient_id = _unique_patient_id(query.filter_by(display_name=display_name))
+            if patient_id is not None:
+                return patient_id
         return None
     finally:
         db.close()
@@ -113,13 +123,13 @@ def find_patient_by_any_platform(
             .filter(Patient.clinic_id == clinic_id)
         )
         if phone:
-            alias = query.filter_by(phone=phone).first()
-            if alias:
-                return alias.patient_id
+            patient_id = _unique_patient_id(query.filter_by(phone=phone))
+            if patient_id is not None:
+                return patient_id
         if external_user_id:
-            alias = query.filter_by(external_user_id=external_user_id).first()
-            if alias:
-                return alias.patient_id
+            patient_id = _unique_patient_id(query.filter_by(external_user_id=external_user_id))
+            if patient_id is not None:
+                return patient_id
         return None
     finally:
         db.close()
