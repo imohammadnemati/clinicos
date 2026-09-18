@@ -21,7 +21,7 @@ from telegram.ext import (
     Application, CommandHandler, CallbackQueryHandler, MessageHandler,
     ConversationHandler, filters, ContextTypes
 )
-from config import BOT_TOKEN, OWNER_TELEGRAM_ID, REDIS_URL, INITIAL_SCORES
+from config import BOT_TOKEN, OWNER_TELEGRAM_ID, REDIS_URL, INITIAL_SCORES, FREELLMAPI_API_KEY
 from database import SessionLocal, init_db
 from models import (
     Clinic, Staff, Patient, PatientAlias, Lead, Appointment,
