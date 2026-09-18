@@ -35,9 +35,18 @@ def get_user_language(user_id: int) -> str:
         staff = db.query(Staff).filter_by(telegram_id=user_id).first()
         if staff and hasattr(staff, 'language') and staff.language:
             return staff.language
-        patient = db.query(Patient).filter_by(telegram_id=user_id).first()
-        if patient and patient.preferred_language:
-            return patient.preferred_language
+        patient_language = (
+            db.query(Patient.preferred_language)
+            .join(PatientAlias, PatientAlias.patient_id == Patient.id)
+            .filter(
+                PatientAlias.platform == "telegram",
+                PatientAlias.external_user_id == str(user_id),
+                Patient.preferred_language.isnot(None),
+            )
+            .first()
+        )
+        if patient_language and patient_language[0]:
+            return patient_language[0]
         return 'fa'
     finally:
         db.close()
