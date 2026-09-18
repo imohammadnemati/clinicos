@@ -41,13 +41,11 @@ def get_or_create_session(clinic_id: int, patient_id: int) -> int:
             return active.id
 
         # Close any old sessions that are still marked active
-        db.query(Session).filter(
+        query = db.query(Session).filter(
             Session.clinic_id == clinic_id,
             Session.patient_id == patient_id,
             Session.is_active == True
         )
-        if clinic_id is not None:
-            query = query.filter(Session.clinic_id == clinic_id)
         result = query.update({"is_active": False, "end_time": now})
 
         # Create new session
@@ -215,9 +213,11 @@ def close_all_patient_sessions(patient_id: int, clinic_id: Optional[int] = None)
     try:
         query = db.query(Session).filter(
             Session.patient_id == patient_id,
-
             Session.is_active == True
-        ).update({
+        )
+        if clinic_id is not None:
+            query = query.filter(Session.clinic_id == clinic_id)
+        result = query.update({
             "is_active": False,
             "end_time": now
         })
