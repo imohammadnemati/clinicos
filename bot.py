@@ -107,15 +107,29 @@ def get_or_create_patient_by_telegram(
     db.commit()
     return patient
 
-def set_user_language(user_id: int, lang: str, db):
-    staff = db.query(Staff).filter_by(telegram_id=user_id).first()
+def set_user_language(user_id: int, lang: str, db, clinic_id: Optional[int] = None):
+    """Update language only inside the user's trusted clinic."""
+    if clinic_id is None:
+        clinic_id = get_user_clinic_id(user_id)
+    if clinic_id is None:
+        return False
+
+    staff = db.query(Staff).filter(
+        Staff.telegram_id == user_id,
+        Staff.clinic_id == clinic_id,
+    ).first()
     if staff:
         staff.language = lang
-    else:
-        patient = get_patient_by_telegram_id(user_id, db)
-        if patient:
-            patient.preferred_language = lang
-    db.commit()
+        db.commit()
+        return True
+
+    patient = get_patient_by_telegram_id(user_id, db, clinic_id=clinic_id)
+    if patient:
+        patient.preferred_language = lang
+        db.commit()
+        return True
+
+    return False
 
 def get_main_keyboard(role: str, lang: str = "fa"):
     """Return dynamic keyboard with translated labels, including language change button."""
@@ -182,7 +196,7 @@ def format_dashboard(role: str, clinic_id: int, db, user_id: int, lang: str = "f
         ).count()
         return get_text("dashboard_doctor", lang).format(pending=pending)
     else:
-        patient = get_patient_by_telegram_id(user_id, db)
+        patient = get_patient_by_telegram_id(user_id, db, clinic_id=clinic_id)
         name = patient.name if patient else "عزیز"
         return get_text("welcome_patient", lang).format(name=name)
 
@@ -231,9 +245,14 @@ async def language_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     db = SessionLocal()
     try:
-        set_user_language(user_id, lang_code, db)
-        role = get_user_role(user_id)
         clinic_id = get_user_clinic_id(user_id)
+        if clinic_id is None:
+            await query.edit_message_text(
+                "Clinic context could not be verified. Please register through your clinic link first."
+            )
+            return ConversationHandler.END
+        set_user_language(user_id, lang_code, db, clinic_id=clinic_id)
+        role = get_user_role(user_id)
         if clinic_id is None:
             await query.edit_message_text(
                 "Clinic context could not be verified. Please register through your clinic link first."
@@ -664,6 +683,12 @@ async def remove_staff_callback(update: Update, context: ContextTypes.DEFAULT_TY
     staff_id = int(data.split('_')[2])
     db = SessionLocal()
     try:
+        clinic_id = get_user_clinic_id(user_id)
+        if clinic_id is None:
+            await query.edit_message_text(
+                "Clinic context could not be verified."
+            )
+            return
         staff = db.query(Staff).filter(
             Staff.id == staff_id, Staff.clinic_id == clinic_id
         ).first()
@@ -689,7 +714,10 @@ async def show_leads(update: Update, context: ContextTypes.DEFAULT_TYPE,
         else:
             msg = get_text("leads_title", lang) + "\n"
             for l in leads:
-                patient = db.query(Patient).filter_by(id=l.patient_id).first()
+                patient = db.query(Patient).filter(
+                    Patient.id == l.patient_id,
+                    Patient.clinic_id == clinic_id,
+                ).first()
                 msg += get_text("leads_item", lang).format(
                     name=patient.name if patient else "ناشناس",
                     service=l.service,
@@ -714,7 +742,10 @@ async def show_doctor_today(update: Update, context: ContextTypes.DEFAULT_TYPE,
         else:
             msg = get_text("doctor_today_title", lang) + "\n"
             for a in appointments:
-                patient = db.query(Patient).filter_by(id=a.patient_id).first()
+                patient = db.query(Patient).filter(
+                    Patient.id == a.patient_id,
+                    Patient.clinic_id == clinic_id,
+                ).first()
                 msg += get_text("doctor_today_item", lang).format(
                     name=patient.name if patient else "بیمار",
                     service=a.service,
@@ -734,7 +765,10 @@ async def show_doctor_escalations(update: Update, context: ContextTypes.DEFAULT_
         else:
             msg = get_text("doctor_escalations_title", lang) + "\n"
             for e in escalations:
-                patient = db.query(Patient).filter_by(id=e.patient_id).first()
+                patient = db.query(Patient).filter(
+                    Patient.id == e.patient_id,
+                    Patient.clinic_id == clinic_id,
+                ).first()
                 msg += get_text("doctor_escalations_item", lang).format(
                     name=patient.name if patient else e.patient_id,
                     reason=e.reason,
@@ -793,7 +827,10 @@ async def show_patient_appointments(update: Update, context: ContextTypes.DEFAUL
         if not patient:
             await update.message.reply_text(get_text("patient_appointments_register_first", lang))
             return
-        appointments = db.query(Appointment).filter_by(patient_id=patient.id).order_by(Appointment.appointment_date.desc()).limit(10).all()
+        appointments = db.query(Appointment).filter(
+            Appointment.patient_id == patient.id,
+            Appointment.clinic_id == patient.clinic_id,
+        ).order_by(Appointment.appointment_date.desc()).limit(10).all()
         if not appointments:
             await update.message.reply_text(get_text("patient_appointments_empty", lang))
         else:
