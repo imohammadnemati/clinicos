@@ -205,7 +205,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     db = SessionLocal()
     try:
-        lang = get_user_language(user_id, db)  # not used, but we could log
+        lang = get_user_language(user_id)  # not used, but we could log
     finally:
         db.close()
 
@@ -230,8 +230,8 @@ async def language_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     db = SessionLocal()
     try:
         set_user_language(user_id, lang_code, db)
-        role = get_user_role(user_id, db)
-        clinic_id = get_user_clinic_id(user_id, db)
+        role = get_user_role(user_id)
+        clinic_id = get_user_clinic_id(user_id)
         welcome = get_text("lang_selected", lang_code)
         await query.edit_message_text(welcome)
         await send_main_menu(update, context, role, clinic_id, db, user_id, lang_code)
@@ -252,13 +252,13 @@ async def main_menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     db = SessionLocal()
     try:
-        lang = get_user_language(user_id, db)
+        lang = get_user_language(user_id)
         if not lang:
             await start(update, context)
             return
 
-        role = get_user_role(user_id, db)
-        clinic_id = get_user_clinic_id(user_id, db)
+        role = get_user_role(user_id)
+        clinic_id = get_user_clinic_id(user_id)
 
         btn_change = get_text("btn_change_language", lang)
         if text == btn_change:
@@ -334,7 +334,7 @@ async def appointment_service_callback(update: Update, context: ContextTypes.DEF
     user_id = update.effective_user.id
     db = SessionLocal()
     try:
-        lang = get_user_language(user_id, db) or "fa"
+        lang = get_user_language(user_id) or "fa"
     finally:
         db.close()
 
@@ -351,7 +351,7 @@ async def appointment_date(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     db = SessionLocal()
     try:
-        lang = get_user_language(user_id, db) or "fa"
+        lang = get_user_language(user_id) or "fa"
     finally:
         db.close()
 
@@ -369,7 +369,7 @@ async def appointment_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     db = SessionLocal()
     try:
-        lang = get_user_language(user_id, db) or "fa"
+        lang = get_user_language(user_id) or "fa"
     finally:
         db.close()
 
@@ -396,7 +396,7 @@ async def appointment_confirm_callback(update: Update, context: ContextTypes.DEF
     user_id = update.effective_user.id
     db = SessionLocal()
     try:
-        lang = get_user_language(user_id, db) or "fa"
+        lang = get_user_language(user_id) or "fa"
     finally:
         db.close()
 
@@ -406,7 +406,7 @@ async def appointment_confirm_callback(update: Update, context: ContextTypes.DEF
 
     db = SessionLocal()
     try:
-        clinic_id = get_user_clinic_id(user_id, db)
+        clinic_id = get_user_clinic_id(user_id)
         patient = get_patient_by_telegram_id(user_id, db)
         if not patient:
             patient = get_or_create_patient_by_telegram(user_id, update.effective_user.full_name, db)
@@ -479,7 +479,7 @@ async def staff_menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
     user_id = update.effective_user.id
     db = SessionLocal()
     try:
-        lang = get_user_language(user_id, db) or "fa"
+        lang = get_user_language(user_id) or "fa"
     finally:
         db.close()
 
@@ -488,9 +488,9 @@ async def staff_menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
         user_id = update.effective_user.id
         db = SessionLocal()
         try:
-            role = get_user_role(user_id, db)
-            clinic_id = get_user_clinic_id(user_id, db)
-            lang = get_user_language(user_id, db) or "fa"
+            role = get_user_role(user_id)
+            clinic_id = get_user_clinic_id(user_id)
+            lang = get_user_language(user_id) or "fa"
             await send_main_menu(update, context, role, clinic_id, db, user_id, lang)
         finally:
             db.close()
@@ -512,7 +512,7 @@ async def add_staff_id(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     db = SessionLocal()
     try:
-        lang = get_user_language(user_id, db) or "fa"
+        lang = get_user_language(user_id) or "fa"
     finally:
         db.close()
 
@@ -533,7 +533,7 @@ async def add_staff_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     db = SessionLocal()
     try:
-        lang = get_user_language(user_id, db) or "fa"
+        lang = get_user_language(user_id) or "fa"
     finally:
         db.close()
 
@@ -543,7 +543,7 @@ async def add_staff_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     db = SessionLocal()
     try:
-        clinic_id = get_user_clinic_id(user_id, db)
+        clinic_id = get_user_clinic_id(user_id)
         role = context.user_data['new_staff_role']
         new_id = context.user_data['new_staff_id']
         if db.query(Staff).filter_by(telegram_id=new_id).first():
@@ -572,7 +572,7 @@ async def show_staff_list(update: Update, context: ContextTypes.DEFAULT_TYPE,
     db = SessionLocal()
     try:
         if clinic_id is None:
-            clinic_id = get_user_clinic_id(user_id, db)
+            clinic_id = get_user_clinic_id(user_id)
         staff = db.query(Staff).filter_by(clinic_id=clinic_id).all()
         if not staff:
             await update.message.reply_text(get_text("staff_list_empty", lang))
@@ -592,7 +592,7 @@ async def show_remove_staff(update: Update, context: ContextTypes.DEFAULT_TYPE,
     db = SessionLocal()
     try:
         if clinic_id is None:
-            clinic_id = get_user_clinic_id(user_id, db)
+            clinic_id = get_user_clinic_id(user_id)
         staff = db.query(Staff).filter_by(clinic_id=clinic_id).all()
         if not staff:
             await update.message.reply_text(get_text("staff_list_empty", lang))
@@ -616,7 +616,7 @@ async def remove_staff_callback(update: Update, context: ContextTypes.DEFAULT_TY
     user_id = update.effective_user.id
     db = SessionLocal()
     try:
-        lang = get_user_language(user_id, db) or "fa"
+        lang = get_user_language(user_id) or "fa"
     finally:
         db.close()
 
@@ -625,9 +625,9 @@ async def remove_staff_callback(update: Update, context: ContextTypes.DEFAULT_TY
         user_id = update.effective_user.id
         db = SessionLocal()
         try:
-            role = get_user_role(user_id, db)
-            clinic_id = get_user_clinic_id(user_id, db)
-            lang = get_user_language(user_id, db) or "fa"
+            role = get_user_role(user_id)
+            clinic_id = get_user_clinic_id(user_id)
+            lang = get_user_language(user_id) or "fa"
             await send_main_menu(update, context, role, clinic_id, db, user_id, lang)
         finally:
             db.close()
@@ -785,7 +785,7 @@ async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_id = update.effective_user.id
         db = SessionLocal()
         try:
-            lang = get_user_language(user_id, db) if user_id else "fa"
+            lang = get_user_language(user_id) if user_id else "fa"
             if not lang:
                 lang = "fa"
         except:
