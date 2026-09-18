@@ -304,11 +304,21 @@ def _add_alias_if_missing(
 
 
 # ========== Utility Functions ==========
-def get_patient_aliases(patient_id: int) -> list:
-    """Return all aliases for a patient. Caller must enforce tenant authorization."""
+def get_patient_aliases(patient_id: int, clinic_id: Optional[int] = None) -> list:
+    """Return aliases only for a patient inside the supplied clinic."""
+    if clinic_id is None:
+        return []
     db = SessionLocal()
     try:
-        aliases = db.query(PatientAlias).filter_by(patient_id=patient_id).all()
+        aliases = (
+            db.query(PatientAlias)
+            .join(Patient, Patient.id == PatientAlias.patient_id)
+            .filter(
+                PatientAlias.patient_id == patient_id,
+                Patient.clinic_id == clinic_id,
+            )
+            .all()
+        )
         return [
             {
                 "platform": a.platform,
