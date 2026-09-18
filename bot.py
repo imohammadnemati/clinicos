@@ -163,10 +163,10 @@ def format_dashboard(role: str, clinic_id: int, db, user_id: int, lang: str = "f
     elif role == 'secretary':
         today = datetime.utcnow().date()
         start = datetime(today.year, today.month, today.day)
-        messages = db.query(RawMessage).filter(RawMessage.created_at >= start).count()
-        leads = db.query(Lead).filter(Lead.created_at >= start).count()
-        appts = db.query(Appointment).filter(Appointment.appointment_date >= start).count()
-        esc = db.query(EscalationLog).filter(EscalationLog.created_at >= start).count()
+        messages = db.query(RawMessage).filter(RawMessage.clinic_id == clinic_id, RawMessage.created_at >= start).count()
+        leads = db.query(Lead).filter(Lead.clinic_id == clinic_id, Lead.created_at >= start).count()
+        appts = db.query(Appointment).filter(Appointment.clinic_id == clinic_id, Appointment.appointment_date >= start).count()
+        esc = db.query(EscalationLog).filter(EscalationLog.clinic_id == clinic_id, EscalationLog.created_at >= start).count()
         return get_text("dashboard_secretary", lang).format(
             messages=messages,
             leads=leads,
@@ -176,7 +176,9 @@ def format_dashboard(role: str, clinic_id: int, db, user_id: int, lang: str = "f
     elif role == 'doctor':
         today_start = datetime.utcnow().replace(hour=0, minute=0, second=0)
         pending = db.query(EscalationLog).filter(
-            EscalationLog.created_at >= today_start, EscalationLog.escalated_to == 'doctor'
+            EscalationLog.clinic_id == clinic_id,
+            EscalationLog.created_at >= today_start,
+            EscalationLog.escalated_to == 'doctor'
         ).count()
         return get_text("dashboard_doctor", lang).format(pending=pending)
     else:
@@ -431,7 +433,9 @@ async def appointment_confirm_callback(update: Update, context: ContextTypes.DEF
         date_str = context.user_data['booking_date']
         time_str = context.user_data['booking_time']
         suggested_datetime = datetime.strptime(f"{date_str} {time_str}", "%Y-%m-%d %H:%M")
-        lead = db.query(Lead).filter_by(patient_id=patient.id, pipeline_stage='new').first()
+        lead = db.query(Lead).filter_by(
+            clinic_id=clinic_id, patient_id=patient.id, pipeline_stage='new'
+        ).first()
         if not lead:
             lead = Lead(clinic_id=clinic_id, patient_id=patient.id, service=service, lead_score=5.0, pipeline_stage='new')
             db.add(lead)
@@ -453,7 +457,7 @@ async def human_handoff(update: Update, context: ContextTypes.DEFAULT_TYPE,
     user_id = update.effective_user.id
     db = SessionLocal()
     try:
-        patient = get_patient_by_telegram_id(user_id, db)
+        patient = get_patient_by_telegram_id(user_id, db, clinic_id=clinic_id)
         if not patient:
             await update.message.reply_text(get_text("human_handoff_register_first", lang))
             return
@@ -568,7 +572,9 @@ async def add_staff_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return ConversationHandler.END
         role = context.user_data['new_staff_role']
         new_id = context.user_data['new_staff_id']
-        if db.query(Staff).filter_by(telegram_id=new_id).first():
+        if db.query(Staff).filter(
+            Staff.telegram_id == new_id, Staff.clinic_id == clinic_id
+        ).first():
             await update.message.reply_text(get_text("staff_already_exists", lang))
             return ConversationHandler.END
         new_staff = Staff(
@@ -658,7 +664,9 @@ async def remove_staff_callback(update: Update, context: ContextTypes.DEFAULT_TY
     staff_id = int(data.split('_')[2])
     db = SessionLocal()
     try:
-        staff = db.query(Staff).filter_by(id=staff_id).first()
+        staff = db.query(Staff).filter(
+            Staff.id == staff_id, Staff.clinic_id == clinic_id
+        ).first()
         if staff:
             db.delete(staff)
             db.commit()
@@ -742,9 +750,9 @@ async def show_secretary_stats(update: Update, context: ContextTypes.DEFAULT_TYP
     try:
         today = datetime.utcnow().date()
         start = datetime(today.year, today.month, today.day)
-        messages = db.query(RawMessage).filter(RawMessage.created_at >= start).count()
-        leads = db.query(Lead).filter(Lead.created_at >= start).count()
-        appointments = db.query(Appointment).filter(Appointment.appointment_date >= start).count()
+        messages = db.query(RawMessage).filter(RawMessage.clinic_id == clinic_id, RawMessage.created_at >= start).count()
+        leads = db.query(Lead).filter(Lead.clinic_id == clinic_id, Lead.created_at >= start).count()
+        appointments = db.query(Appointment).filter(Appointment.clinic_id == clinic_id, Appointment.appointment_date >= start).count()
         msg = get_text("stats_today_title", lang) + "\n" + \
               get_text("stats_messages", lang).format(messages=messages) + "\n" + \
               get_text("stats_leads", lang).format(leads=leads) + "\n" + \
