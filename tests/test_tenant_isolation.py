@@ -56,6 +56,19 @@ def test_patient_language_uses_telegram_alias_not_patient_telegram_id():
     db.query.assert_any_call(Patient.preferred_language)
 
 
+def test_ambiguous_patient_language_fails_closed():
+    db = MagicMock()
+    staff_query = db.query.return_value
+    staff_query.filter_by.return_value.first.return_value = None
+    staff_query.join.return_value.filter.return_value.distinct.return_value.all.return_value = [
+        (10, "en"),
+        (20, "fa"),
+    ]
+
+    with patch("utils.role_utils.SessionLocal", return_value=db):
+        assert get_user_language(12345) == "fa"
+
+
 def test_identity_resolution_is_clinic_scoped():
     db = MagicMock()
     q = db.query.return_value.join.return_value.filter.return_value
@@ -66,5 +79,4 @@ def test_identity_resolution_is_clinic_scoped():
         from identity_resolution import find_patient_by_alias
         assert find_patient_by_alias(7, "telegram", external_user_id="123") == 42
 
-    # The patient table must participate in the lookup so another clinic's alias cannot match.
     db.query.assert_called_once_with(PatientAlias)
