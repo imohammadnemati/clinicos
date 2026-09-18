@@ -1,4 +1,4 @@
-"""
+""" 
 Role utilities for Clinicos – shared between bot.py and handlers.
 Each function creates its own database session to avoid None errors.
 """
@@ -9,45 +9,51 @@ from models import Staff, Patient, PatientAlias
 
 
 def get_user_role(user_id: int) -> str:
-    """
-    Get user role from database.
-    Creates its own database session.
-    Returns 'patient' if user is not found.
-    """
+    """Return the staff role, or patient when no staff record exists."""
     db = SessionLocal()
     try:
         staff = db.query(Staff).filter_by(telegram_id=user_id).first()
         if staff:
             return staff.role
-        return 'patient'
+        return "patient"
     finally:
         db.close()
 
 
 def get_user_language(user_id: int) -> str:
     """
-    Get user's preferred language from database.
-    Creates its own database session.
-    Returns 'fa' if not found.
+    Resolve preferred language from the authenticated identity.
+
+    Staff Telegram IDs are globally unique and authoritative. For patients,
+    language is accepted only when the Telegram alias resolves to exactly one
+    clinic and exactly one non-null preferred language. Ambiguous identity
+    fails closed to Persian.
     """
     db = SessionLocal()
     try:
         staff = db.query(Staff).filter_by(telegram_id=user_id).first()
-        if staff and hasattr(staff, 'language') and staff.language:
+        if staff and staff.language:
             return staff.language
-        patient_language = (
-            db.query(Patient.preferred_language)
+
+        rows = (
+            db.query(Patient.clinic_id, Patient.preferred_language)
             .join(PatientAlias, PatientAlias.patient_id == Patient.id)
             .filter(
                 PatientAlias.platform == "telegram",
                 PatientAlias.external_user_id == str(user_id),
+                Patient.clinic_id.isnot(None),
                 Patient.preferred_language.isnot(None),
             )
-            .first()
+            .distinct()
+            .all()
         )
-        if patient_language and patient_language[0]:
-            return patient_language[0]
-        return 'fa'
+
+        clinic_ids = {row[0] for row in rows if row[0] is not None}
+        languages = {row[1] for row in rows if row[1]}
+
+        if len(clinic_ids) == 1 and len(languages) == 1:
+            return next(iter(languages))
+        return "fa"
     finally:
         db.close()
 
