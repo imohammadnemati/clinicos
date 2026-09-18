@@ -4,7 +4,7 @@ SQLAlchemy setup, session management, and database initialization.
 Includes all models (including facial analysis models).
 """
 
-from sqlalchemy import create_engine, event
+from sqlalchemy import create_engine, event, text
 from sqlalchemy.orm import sessionmaker, scoped_session
 from sqlalchemy.pool import StaticPool, QueuePool
 from config import DATABASE_URL, DATABASE_POOL_SIZE, DATABASE_MAX_OVERFLOW, DATABASE_POOL_TIMEOUT, DATABASE_POOL_RECYCLE, DEBUG_MODE
@@ -159,7 +159,7 @@ def database_health_check() -> dict:
         import time
         start = time.time()
         with engine.connect() as conn:
-            conn.execute("SELECT 1")
+            conn.execute(text("SELECT 1"))
         latency = (time.time() - start) * 1000
         result["status"] = "healthy"
         result["latency_ms"] = round(latency, 2)
