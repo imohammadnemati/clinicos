@@ -135,6 +135,14 @@ def confirm_appointment(request_id: int, confirmed_date: datetime, staff_id: int
             logger.error("Appointment confirmation denied: staff/clinic mismatch")
             return False
 
+        patient = db.query(Patient).filter(
+            Patient.id == lead.patient_id,
+            Patient.clinic_id == req.clinic_id,
+        ).first()
+        if not patient:
+            logger.error("Appointment confirmation denied: patient/clinic mismatch")
+            return False
+
         # Check duplicate
         existing = _get_existing_appointment(req.clinic_id, lead.patient_id, confirmed_date)
         if existing:
@@ -371,8 +379,11 @@ def get_upcoming_appointments(clinic_id: int, days: int = 7) -> List[Dict]:
     db = SessionLocal()
     now = datetime.utcnow()
     future = now + timedelta(days=days)
-    appointments = db.query(Appointment, Patient).join(Patient).filter(
+    appointments = db.query(Appointment, Patient).join(
+        Patient, Patient.id == Appointment.patient_id
+    ).filter(
         Appointment.clinic_id == clinic_id,
+        Patient.clinic_id == clinic_id,
         Appointment.status == APPOINTMENT_SCHEDULED,
         Appointment.appointment_date > now,
         Appointment.appointment_date <= future
