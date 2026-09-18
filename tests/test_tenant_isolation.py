@@ -107,10 +107,10 @@ def test_working_hours_session_check_is_clinic_scoped():
 
 def test_identity_merge_refuses_cross_clinic_patients():
     from identity_resolution import merge_patients
-    master = MagicMock(clinic_id=1)
-    slave = MagicMock(clinic_id=2)
+    master = MagicMock(id=10, clinic_id=1)
+    slave = MagicMock(id=20, clinic_id=2)
     db = MagicMock()
-    db.query.return_value.filter.return_value.first.side_effect = [master, slave]
+    db.query.return_value.filter.return_value.all.return_value = [master, slave]
     with patch("identity_resolution.SessionLocal", return_value=db):
         assert merge_patients(10, 20) is False
         db.commit.assert_not_called()
